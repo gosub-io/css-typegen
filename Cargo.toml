@@ -1,0 +1,10 @@
+[package]
+name = "css-typegen"
+version = "0.1.0"
+edition = "2021"
+authors = ["Gosub Community <info@gosub.io>"]
+description = "Gosub browser using GTK"
+license = "MIT"
+
+[dependencies]
+gosub_css3 = { version = "0.1.1", registry = "gosub" }
