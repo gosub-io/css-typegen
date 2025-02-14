@@ -237,6 +237,8 @@ name = "css-typegen"
 version = "0.1.0"
 dependencies = [
  "gosub_css3",
+ "proc-macro2",
+ "syn",
 ]
 
 [[package]]
