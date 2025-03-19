@@ -3,20 +3,16 @@ mod multiplier;
 
 use gosub_css3::matcher::property_definitions::get_css_definitions;
 use proc_macro2::Span;
-use syn::ItemEnum;
+use syn::{ItemEnum, ItemStruct};
 use syn::punctuated::Punctuated;
-use crate::component::generate_component;
+use crate::component::generate_component_root;
 
 fn main() {
-
     let defs = get_css_definitions();
 
-    let cubic = defs.syntax.get("display-outside").unwrap();
+    let width = defs.properties.get("width").unwrap();
 
-
-    let mut ty = new_enum("DisplayOutside");
-    
-    generate_component(&mut ty, &cubic.syntax.components[0])
+    generate_component_root(&width.syntax.components[0], "Width");
 }
 
 fn new_enum(name: &str) -> ItemEnum {
@@ -27,9 +23,21 @@ fn new_enum(name: &str) -> ItemEnum {
         ident: syn::Ident::new(name, Span::call_site()),
         generics: Default::default(),
         brace_token: Default::default(),
-        variants: Punctuated::new()
+        variants: Punctuated::new(),
     }
 }
 
-
-
+fn new_struct(name: &str) -> ItemStruct {
+    ItemStruct {
+        attrs: vec![],
+        vis: syn::Visibility::Inherited,
+        struct_token: Default::default(),
+        ident: syn::Ident::new(name, Span::call_site()),
+        generics: Default::default(),
+        fields: syn::Fields::Named(syn::FieldsNamed {
+            brace_token: Default::default(),
+            named: Punctuated::new(),
+        }),
+        semi_token: Some(Default::default()),
+    }
+}

@@ -10,3 +10,4 @@ license = "MIT"
 gosub_css3 = { version = "0.1.1", registry = "gosub" }
 syn = {version = "2.0.98", features = ["full"] }
 proc-macro2 = "1.0.93"
+convert_case = "0.8.0"
