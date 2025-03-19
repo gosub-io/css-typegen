@@ -7,11 +7,11 @@ pub enum MultiplierError {
 }
 
 
-pub struct ZeroOrMore<T>(Vec<T>);
-pub struct OneOrMore<T>(Vec<T>);
-pub struct Between<const L: usize, const U: usize, T>(Vec<T>);
+pub struct ZeroOrMore<T>(pub Vec<T>);
+pub struct OneOrMore<T>(pub Vec<T>);
+pub struct Between<const L: usize, const U: usize, T>(pub Vec<T>);
 // pub struct AtLeastOne //TODO
-pub struct CommaSeparatedRepeat<const L: usize, const U: usize, T>(Vec<T>);
+pub struct CommaSeparatedRepeat<const L: usize, const U: usize, T>(pub Vec<T>);
 
 
 impl<T> ZeroOrMore<T> {

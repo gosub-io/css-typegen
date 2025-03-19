@@ -92,7 +92,7 @@ pub fn generate_group_enum(components: &[SyntaxComponent], name: &str) -> ItemEn
         match component {
             SyntaxComponent::GenericKeyword {
                 keyword,
-                multipliers,
+                multipliers: _ ,
             } => {
                 //TODO: handle multipliers
                 ty.variants.push(syn::Variant {
@@ -147,7 +147,7 @@ pub fn generate_group_enum(components: &[SyntaxComponent], name: &str) -> ItemEn
                     discriminant: None,
                 });
             }
-            SyntaxComponent::Function { name, multipliers, arguments } => {
+            SyntaxComponent::Function { name, multipliers: _ , arguments } => {
                 let fields = if let Some(arguments) = arguments {
                     generate_group_struct(slice::from_ref(arguments), &name.to_case(Case::Pascal)).fields
                 } else {
