@@ -316,7 +316,7 @@ pub fn generate_group_enum(
                 combinator,
                 ..
             } => {
-                let res = generate_group(components, combinator.clone(), name);
+                let res = generate_group(components, combinator.clone(), format!("{}Group", name).as_str());
                 additional.extend(res.1);
                 match res.0 {
                     //TODO there needs to be another name for the group
@@ -328,20 +328,7 @@ pub fn generate_group_enum(
                         ty.variants.push(syn::Variant {
                             attrs: vec![],
                             ident: s.ident.clone(),
-                            fields: Fields::Unnamed(FieldsUnnamed {
-                                paren_token: Default::default(),
-                                unnamed: Punctuated::from_iter(vec![Field {
-                                    attrs: vec![],
-                                    vis: syn::Visibility::Inherited,
-                                    mutability: FieldMutability::None,
-                                    ident: None,
-                                    colon_token: None,
-                                    ty: Type::Path(TypePath {
-                                        qself: None,
-                                        path: Path::from(s.ident.clone()),
-                                    }),
-                                }]),
-                            }),
+                            fields: s.fields,
                             discriminant: None,
                         });
                     }
@@ -408,7 +395,9 @@ pub fn generate_group_enum(
                 });
             }
 
-            SyntaxComponent::Property { .. } => {
+            SyntaxComponent::Property { property, .. } => {
+                println!("name: {name}, property: {property}");
+
                 // what is this?
             }
 
