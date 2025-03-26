@@ -1,7 +1,7 @@
+use css_typegen::component::generate_component_root;
 use gosub_css3::matcher::property_definitions::get_css_definitions;
 use proc_macro2::TokenStream;
 use syn::__private::ToTokens;
-use css_typegen::component::generate_component_root;
 
 fn main() {
     let defs = get_css_definitions();
@@ -49,6 +49,4 @@ fn main() {
     let out = prettyplease::unparse(&file);
 
     std::fs::write("out.rs", out).unwrap();
-
 }
-

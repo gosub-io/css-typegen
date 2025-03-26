@@ -26,9 +26,9 @@ fn new_struct(name: &str) -> ItemStruct {
         struct_token: Default::default(),
         ident: ident(name),
         generics: Default::default(),
-        fields: syn::Fields::Named(syn::FieldsNamed {
-            brace_token: Default::default(),
-            named: Punctuated::new(),
+        fields: syn::Fields::Unnamed(syn::FieldsUnnamed {
+            paren_token: Default::default(),
+            unnamed: Default::default(),
         }),
         semi_token: Some(Default::default()),
     }
@@ -74,4 +74,36 @@ fn ident_snake(name: &str) -> syn::Ident {
     let name = transform_id(name);
 
     syn::Ident::new(&name.to_case(Case::Snake), Span::call_site())
+}
+
+
+#[derive(Debug, Clone, Copy)]
+struct Name<'a> {
+    pub name: &'a str,
+    pub find_better_name: bool,
+}
+
+impl<'a> Name<'a> {
+    pub fn better(&self) -> Self {
+        Self {
+            name: self.name,
+            find_better_name: true,
+        }
+    }
+    
+    pub fn new(name: &'a str) -> Self {
+        Self {
+            name,
+            find_better_name: true,
+        }
+    }
+}
+
+impl<'a> From<&'a str> for Name<'a> {
+    fn from(name: &'a str) -> Self {
+        Self {
+            name,
+            find_better_name: false,
+        }
+    }
 }

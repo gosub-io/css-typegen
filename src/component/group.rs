@@ -1,6 +1,6 @@
 use crate::component::generate_component_root;
 use crate::value::value_to_ident;
-use crate::{ident, ident_snake, new_enum, new_struct};
+use crate::{ident, new_enum, new_struct, Name};
 use convert_case::{Case, Casing};
 use gosub_css3::matcher::syntax::{GroupCombinators, SyntaxComponent};
 use proc_macro2::{Ident, Span};
@@ -12,6 +12,8 @@ use syn::{
     Field, FieldMutability, Fields, FieldsUnnamed, ItemEnum, ItemStruct, Path, Type, TypePath,
     Visibility,
 };
+
+const NAME_RANGE: std::ops::Range<usize> = 5..50;
 
 pub enum StructOrEnum {
     Struct(ItemStruct),
@@ -39,7 +41,7 @@ impl Display for StructOrEnum {
 pub fn generate_group(
     components: &[SyntaxComponent],
     combinator: GroupCombinators,
-    name: &str,
+    name: Name,
 ) -> (StructOrEnum, Vec<StructOrEnum>) {
     match combinator {
         GroupCombinators::Juxtaposition | GroupCombinators::AllAnyOrder => {
@@ -56,39 +58,45 @@ pub fn generate_group(
 
 pub fn generate_group_struct(
     components: &[SyntaxComponent],
-    name: &str,
+    name: Name,
 ) -> (ItemStruct, Vec<StructOrEnum>) {
-    let mut ty = new_struct(name);
+    let mut ty = new_struct(name.name);
     let mut additional = Vec::new();
+    let mut better_name = String::new();
 
     let fields = match &mut ty.fields {
-        syn::Fields::Named(fields) => fields,
-        _ => panic!("Expected named fields"),
+        syn::Fields::Unnamed(fields) => fields,
+        _ => panic!("Expected unnamed fields"),
     };
 
     for component in components {
         match component {
-            SyntaxComponent::GenericKeyword { .. }
-            | SyntaxComponent::Inherit { .. }
-            | SyntaxComponent::Initial { .. }
-            | SyntaxComponent::Unset { .. } => {}
+            SyntaxComponent::GenericKeyword { keyword, .. } => {
+                better_name.push_str(&keyword.to_case(Case::Pascal));
+            }
+            SyntaxComponent::Inherit { .. } => {
+                better_name.push_str("Inherit");
+            }
+            SyntaxComponent::Initial { .. } => {
+                better_name.push_str("Initial");
+            }
+            SyntaxComponent::Unset { .. } => {
+                better_name.push_str("Unset");
+            }
 
             SyntaxComponent::Definition { datatype, .. } => {
                 let ty = datatype.to_case(Case::Pascal);
 
                 let ty = ty.trim_end_matches("()");
+                better_name.push_str(ty);
 
                 let ty = Ident::new(ty, Span::call_site());
 
-                let id = datatype.to_case(Case::Snake);
-                let id = id.trim_end_matches("()");
-                let id = Ident::new(id, Span::call_site());
-
-                fields.named.push(Field {
+                fields.unnamed.push(Field {
                     attrs: Vec::new(),
                     vis: syn::Visibility::Inherited,
                     mutability: FieldMutability::None,
-                    ident: Some(id),
+                    ident: None,
                     colon_token: None,
                     ty: Type::Path(TypePath {
                         qself: None,
@@ -102,6 +110,8 @@ pub fn generate_group_struct(
                 multipliers: _,
                 arguments,
             } => {
+                better_name.push_str(&name.to_case(Case::Pascal));
+                
                 if let Some(arguments) = arguments {
                     let Some(res) = generate_component_root(arguments, name) else {
                         continue;
@@ -112,28 +122,39 @@ pub fn generate_group_struct(
                         StructOrEnum::Struct(s) => match s.fields {
                             Fields::Unit => {}
                             Fields::Named(fn_fields) => {
-                                fields.named.extend(fn_fields.named);
+                                
+                                
+                                
+                                // fields.named.extend(fn_fields.named);
                             }
-                            Fields::Unnamed(fn_fields) => fields.named.push(Field {
-                                attrs: vec![],
-                                vis: Visibility::Inherited,
-                                mutability: FieldMutability::None,
-                                ident: Some(ident_snake(name)),
-                                colon_token: None,
-                                ty: Type::Tuple(syn::TypeTuple {
-                                    paren_token: Default::default(),
-                                    elems: fn_fields.unnamed.into_iter().map(|f| f.ty).collect(),
-                                }),
-                            }),
+                            Fields::Unnamed(fn_fields) => {
+                                let ty = if fn_fields.unnamed.len() == 1 {
+                                    fn_fields.unnamed.first().unwrap().ty.clone()
+                                } else {
+                                    Type::Tuple(syn::TypeTuple {
+                                        paren_token: Default::default(),
+                                        elems: fn_fields.unnamed.into_iter().map(|f| f.ty).collect(),
+                                    })
+                                };
+
+                                fields.unnamed.push(Field {
+                                    attrs: vec![],
+                                    vis: Visibility::Inherited,
+                                    mutability: FieldMutability::None,
+                                    ident: None,
+                                    colon_token: None,
+                                    ty,
+                                })
+                            },
                         },
                         StructOrEnum::Enum(mut e) => {
                             e.ident = ident(&format!("{}{}", name, "Args"));
 
-                            fields.named.push(Field {
+                            fields.unnamed.push(Field {
                                 attrs: vec![],
                                 vis: Visibility::Inherited,
                                 mutability: FieldMutability::None,
-                                ident: Some(ident_snake(&e.ident.to_string())),
+                                ident: None,
                                 colon_token: None,
                                 ty: Type::Path(TypePath {
                                     qself: None,
@@ -152,37 +173,48 @@ pub fn generate_group_struct(
                 combinator,
                 ..
             } => {
-                let res = generate_group(components, combinator.clone(), name);
+                let name_init = name.name.trim_end_matches("()");
+                let name_init = format!("{}Group", name_init);
+                let res = generate_group(components, combinator.clone(), Name::new(&name_init));
                 additional.extend(res.1);
 
                 match res.0 {
                     StructOrEnum::Struct(s) => match s.fields {
                         Fields::Unit => {}
                         Fields::Named(fn_fields) => {
-                            fields.named.extend(fn_fields.named);
+                            // fields.unnamed.extend(fn_fields.named);
                         }
-                        Fields::Unnamed(fn_fields) => fields.named.push(Field {
+                        Fields::Unnamed(fn_fields) => {
+                            if !fn_fields.unnamed.is_empty() {
+                                let ty = if fn_fields.unnamed.len() == 1 {
+                                    fn_fields.unnamed.first().unwrap().ty.clone()
+                                } else {
+                                    Type::Tuple(syn::TypeTuple {
+                                        paren_token: Default::default(),
+                                        elems: fn_fields.unnamed.into_iter().map(|f| f.ty).collect(),
+                                    })
+                                };
+                                
+                                
+                                fields.unnamed.push(Field {
+                                    attrs: vec![],
+                                    vis: Visibility::Inherited,
+                                    mutability: FieldMutability::None,
+                                    ident: None,
+                                    colon_token: None,
+                                    ty,
+                                })
+                            }
+                            
+                        },
+                    },
+                    StructOrEnum::Enum(e) => {
+                        fields.unnamed.push(Field {
                             attrs: vec![],
                             vis: Visibility::Inherited,
                             mutability: FieldMutability::None,
                             ident: None,
                             colon_token: None,
-                            ty: Type::Tuple(syn::TypeTuple {
-                                paren_token: Default::default(),
-                                elems: fn_fields.unnamed.into_iter().map(|f| f.ty).collect(),
-                            }),
-                        }),
-                    },
-                    StructOrEnum::Enum(mut e) => {
-                        let name = name.trim_end_matches("()");
-                        e.ident = ident(&format!("{}{}", name, "Group"));
-
-                        fields.named.push(Field {
-                            attrs: vec![],
-                            vis: Visibility::Inherited,
-                            mutability: FieldMutability::None,
-                            ident: Some(ident_snake(&e.ident.to_string())),
-                            colon_token: Some(Default::default()),
                             ty: Type::Path(TypePath {
                                 qself: None,
                                 path: Path::from(e.ident.clone()),
@@ -197,11 +229,13 @@ pub fn generate_group_struct(
             SyntaxComponent::Literal { .. } => {}
 
             SyntaxComponent::Builtin { datatype, .. } => {
-                fields.named.push(Field {
+                better_name.push_str(&datatype.to_case(Case::Pascal));
+                
+                fields.unnamed.push(Field {
                     attrs: vec![],
                     vis: syn::Visibility::Inherited,
                     mutability: FieldMutability::None,
-                    ident: Some(ident_snake(datatype)),
+                    ident: None,
                     colon_token: None,
                     ty: Type::Path(TypePath {
                         qself: None,
@@ -216,15 +250,20 @@ pub fn generate_group_struct(
         }
     }
 
+    if name.find_better_name && NAME_RANGE.contains(&better_name.len()) {
+        ty.ident = ident(&better_name);
+    }
+
     (ty, additional)
 }
 
 pub fn generate_group_enum(
     components: &[SyntaxComponent],
-    name: &str,
+    name: Name,
 ) -> (ItemEnum, Vec<StructOrEnum>) {
-    let mut ty = new_enum(name);
+    let mut ty = new_enum(name.name);
     let mut additional = Vec::new();
+    let mut better_name = String::new();
 
     for component in components {
         match component {
@@ -232,7 +271,8 @@ pub fn generate_group_enum(
                 keyword,
                 multipliers: _,
             } => {
-                //TODO: handle multipliers
+                better_name.push_str(&keyword.to_case(Case::Pascal));
+
                 ty.variants.push(syn::Variant {
                     attrs: vec![],
                     ident: ident(keyword),
@@ -241,6 +281,8 @@ pub fn generate_group_enum(
                 });
             }
             SyntaxComponent::Inherit { .. } => {
+                better_name.push_str("Inherit");
+
                 ty.variants.push(syn::Variant {
                     attrs: vec![],
                     ident: Ident::new("Inherit", Span::call_site()),
@@ -250,6 +292,8 @@ pub fn generate_group_enum(
             }
 
             SyntaxComponent::Initial { .. } => {
+                better_name.push_str("Initial");
+
                 ty.variants.push(syn::Variant {
                     attrs: vec![],
                     ident: Ident::new("Initial", Span::call_site()),
@@ -262,6 +306,9 @@ pub fn generate_group_enum(
                 let id = datatype.to_case(Case::Pascal);
 
                 let id = id.trim_end_matches("()");
+
+                better_name.push_str(&id);
+
 
                 let id = Ident::new(id, Span::call_site());
 
@@ -290,22 +337,25 @@ pub fn generate_group_enum(
                 multipliers: _,
                 arguments,
             } => {
+                let name = name.to_case(Case::Pascal);
+                better_name.push_str(&name);
+
                 let fields = if let Some(arguments) = arguments {
                     let res = generate_group_struct(
                         slice::from_ref(arguments),
-                        &name.to_case(Case::Pascal),
+                        name.as_str().into()
                     );
 
                     additional.extend(res.1);
 
-                    res.0.fields
+                    fix_fields(res.0.fields)
                 } else {
                     syn::Fields::Unit
                 };
 
                 ty.variants.push(syn::Variant {
                     attrs: vec![],
-                    ident: Ident::new(&name.to_case(Case::Pascal), Span::call_site()),
+                    ident: Ident::new(&name, Span::call_site()),
                     fields,
                     discriminant: None,
                 });
@@ -316,7 +366,7 @@ pub fn generate_group_enum(
                 combinator,
                 ..
             } => {
-                let res = generate_group(components, combinator.clone(), format!("{}Group", name).as_str());
+                let res = generate_group(components, combinator.clone(), Name::new(&format!("{}Group", name.name)));
                 additional.extend(res.1);
                 match res.0 {
                     //TODO there needs to be another name for the group
@@ -325,17 +375,30 @@ pub fn generate_group_enum(
                     }
 
                     StructOrEnum::Struct(s) => {
+                        let fields = fix_fields(s.fields);
+                        
                         ty.variants.push(syn::Variant {
                             attrs: vec![],
                             ident: s.ident.clone(),
-                            fields: s.fields,
+                            fields,
                             discriminant: None,
                         });
                     }
                 }
             }
 
-            SyntaxComponent::Literal { .. } => {}
+            SyntaxComponent::Literal { literal, .. } => {
+                let lit = get_literal(literal);
+                
+                better_name.push_str(&lit);
+                
+                ty.variants.push(syn::Variant {
+                    attrs: vec![],
+                    ident: Ident::new(&lit, Span::call_site()),
+                    fields: syn::Fields::Unit,
+                    discriminant: None,
+                });
+            }
 
             SyntaxComponent::Unset { .. } => {
                 ty.variants.push(syn::Variant {
@@ -346,34 +409,22 @@ pub fn generate_group_enum(
                 });
             }
 
-            SyntaxComponent::Initial { .. } => {
-                ty.variants.push(syn::Variant {
-                    attrs: vec![],
-                    ident: Ident::new("Initial", Span::call_site()),
-                    fields: syn::Fields::Unit,
-                    discriminant: None,
-                });
-            }
-
-            SyntaxComponent::Inherit { .. } => {
-                ty.variants.push(syn::Variant {
-                    attrs: vec![],
-                    ident: Ident::new("Inherit", Span::call_site()),
-                    fields: syn::Fields::Unit,
-                    discriminant: None,
-                });
-            }
-
             SyntaxComponent::Value { value, .. } => {
+                let name = value_to_ident(value);
+
+                better_name.push_str(&name.to_string());
+
                 ty.variants.push(syn::Variant {
                     attrs: vec![],
-                    ident: Ident::new(&value_to_ident(value), Span::call_site()),
+                    ident: Ident::new(&name, Span::call_site()),
                     fields: syn::Fields::Unit,
                     discriminant: None,
                 });
             }
 
             SyntaxComponent::Builtin { datatype, .. } => {
+                better_name.push_str(&datatype.to_case(Case::Pascal));
+
                 ty.variants.push(syn::Variant {
                     attrs: vec![],
                     ident: ident(datatype),
@@ -395,9 +446,7 @@ pub fn generate_group_enum(
                 });
             }
 
-            SyntaxComponent::Property { property, .. } => {
-                println!("name: {name}, property: {property}");
-
+            SyntaxComponent::Property { .. } => {
                 // what is this?
             }
 
@@ -406,6 +455,98 @@ pub fn generate_group_enum(
             }
         }
     }
+    
+    if name.find_better_name && NAME_RANGE.contains(&better_name.len()) {
+        ty.ident = ident(&better_name);
+    }
+
+    // println!("Better name: {}", better_name);
 
     (ty, additional)
+}
+
+
+fn fix_fields(fields: Fields) -> Fields {
+    match fields {
+        Fields::Unnamed(mut fields) => {
+            if fields.unnamed.is_empty() {
+                return Fields::Unit;
+            }
+            
+            if fields.unnamed.len() == 1 {
+                let field = fields.unnamed.pop().unwrap().into_value();
+
+                if let Type::Tuple(tuple) = field.ty {
+                    for ty in tuple.elems {
+                        fields.unnamed.push(Field {
+                            attrs: vec![],
+                            vis: syn::Visibility::Inherited,
+                            mutability: FieldMutability::None,
+                            ident: None,
+                            colon_token: None,
+                            ty,
+                        });
+
+                    }
+                } else {
+                    fields.unnamed.push(field);
+                }
+            }
+            
+            for field in fields.unnamed.iter_mut() {
+                if let Type::Tuple(tuple) = &field.ty {
+                    if tuple.elems.len() == 1 {
+                        field.ty = tuple.elems.first().unwrap().clone();
+                    }
+                    
+                }
+            }
+
+            Fields::Unnamed(fields)
+        },
+        
+        Fields::Named(fields) => {
+            if fields.named.is_empty() {
+                return Fields::Unit;
+            }
+
+            Fields::Named(fields)
+        },
+
+        Fields::Unit => Fields::Unit,
+    }
+}
+
+fn get_literal(literal: &str) -> String {
+    let literal = match literal {
+        "+" => "Plus",
+        "-" => "Minus",
+        "*" => "Asterisk",
+        "/" => "Slash",
+        "%" => "Percent",
+        "^" => "Caret",
+        "!" => "Exclamation",
+        "=" => "Equal",
+        "<" => "LessThan",
+        ">" => "GreaterThan",
+        "$" => "Dollar",
+        "#" => "Hash",
+        "~" => "Tilde",
+        "|" => "Pipe",
+        _ => literal,
+    };
+    
+    
+    
+    let mut lit = literal.to_case(Case::Pascal);
+
+    if lit.starts_with(char::is_numeric) {
+        lit = format!("_{}", lit);
+    }
+
+    if lit.to_lowercase() == "self" {
+        lit.remove(1);
+    }
+
+    lit
 }
