@@ -15,6 +15,7 @@ use syn::{
 
 const NAME_RANGE: std::ops::Range<usize> = 5..50;
 
+#[derive(Debug, PartialEq, Eq, Hash)]
 pub enum StructOrEnum {
     Struct(ItemStruct),
     Enum(ItemEnum),
