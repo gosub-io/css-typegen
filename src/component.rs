@@ -1,5 +1,6 @@
 mod group;
 
+use convert_case::{Case, Casing};
 use crate::component::group::StructOrEnum;
 use crate::{ident, new_struct_unit};
 use gosub_css3::matcher::syntax::SyntaxComponent;
@@ -16,23 +17,24 @@ pub fn generate_component_root(
             multipliers: _,
             arguments,
         } => {
+            let name = format!("{}Fn", name.to_case(Case::Pascal));
             if let Some(arg) = arguments {
-                let res = generate_component_root(arg, name)?;
+                let res = generate_component_root(arg, &name)?;
 
                 match res.0 {
                     StructOrEnum::Struct(mut s) => {
-                        s.ident = ident(name);
+                        s.ident = ident(&name);
 
                         (StructOrEnum::Struct(s), res.1)
                     }
                     StructOrEnum::Enum(mut e) => {
-                        e.ident = ident(name);
+                        e.ident = ident(&name);
 
                         (StructOrEnum::Enum(e), res.1)
                     }
                 }
             } else {
-                (StructOrEnum::Struct(new_struct_unit(name)), Vec::new())
+                (StructOrEnum::Struct(new_struct_unit(&name)), Vec::new())
             }
         }
 
@@ -47,6 +49,9 @@ pub fn generate_component_root(
         }
 
         SyntaxComponent::Definition { datatype, .. } => {
+            let suffix = if datatype.ends_with("()") { "Fn" } else { "Def" };
+            
+            let datatype = &format!("{}{suffix}", datatype.to_case(Case::Pascal));
             let mut s = new_struct_unit(name);
 
             s.fields = Fields::Unnamed(syn::FieldsUnnamed {

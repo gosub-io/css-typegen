@@ -85,13 +85,14 @@ pub fn generate_group_struct(
                 better_name.push_str("Unset");
             }
 
-            SyntaxComponent::Definition { datatype, .. } => {
-                let ty = datatype.to_case(Case::Pascal);
+            SyntaxComponent::Definition { datatype, .. } => { 
+                let suffix = if datatype.ends_with("()") { "Fn" } else { "Def" };
 
-                let ty = ty.trim_end_matches("()");
+                let ty = datatype.trim_end_matches("()");
                 better_name.push_str(ty);
+                let ty = format!("{}{suffix}", ty.to_case(Case::Pascal));
 
-                let ty = Ident::new(ty, Span::call_site());
+                let ty = Ident::new(&ty, Span::call_site());
 
                 fields.unnamed.push(Field {
                     attrs: Vec::new(),
@@ -111,7 +112,9 @@ pub fn generate_group_struct(
                 multipliers: _,
                 arguments,
             } => {
-                better_name.push_str(&name.to_case(Case::Pascal));
+                let name = name.to_case(Case::Pascal);
+                better_name.push_str(&name);
+                let name = &format!("{}Fn", name);
                 
                 if let Some(arguments) = arguments {
                     let Some(res) = generate_component_root(arguments, name) else {
@@ -304,14 +307,16 @@ pub fn generate_group_enum(
             }
 
             SyntaxComponent::Definition { datatype, .. } => {
+                let suffix = if datatype.ends_with("()") { "Fn" } else { "Def" };
                 let id = datatype.to_case(Case::Pascal);
-
                 let id = id.trim_end_matches("()");
 
-                better_name.push_str(&id);
+                better_name.push_str(id);
+                let id_def = &format!("{}{suffix}", id);
 
 
                 let id = Ident::new(id, Span::call_site());
+                let id_def = Ident::new(id_def, Span::call_site());
 
                 ty.variants.push(syn::Variant {
                     attrs: vec![],
@@ -326,7 +331,7 @@ pub fn generate_group_enum(
                             colon_token: None,
                             ty: Type::Path(TypePath {
                                 qself: None,
-                                path: Path::from(id),
+                                path: Path::from(id_def),
                             }),
                         }]),
                     }),
@@ -340,11 +345,12 @@ pub fn generate_group_enum(
             } => {
                 let name = name.to_case(Case::Pascal);
                 better_name.push_str(&name);
+                let name_fn = &format!("{}Fn", name);
 
                 let fields = if let Some(arguments) = arguments {
                     let res = generate_group_struct(
                         slice::from_ref(arguments),
-                        name.as_str().into()
+                        name_fn.as_str().into()
                     );
 
                     additional.extend(res.1);
