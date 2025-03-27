@@ -60,7 +60,7 @@ fn transform_id(name: &str) -> String {
     name
 }
 
-fn ident(name: &str) -> syn::Ident {
+pub fn ident(name: &str) -> syn::Ident {
     let mut name = transform_id(name).to_case(Case::Pascal);
 
     if name.starts_with(char::is_numeric) {
@@ -70,7 +70,7 @@ fn ident(name: &str) -> syn::Ident {
     syn::Ident::new(&name, Span::call_site())
 }
 
-fn ident_snake(name: &str) -> syn::Ident {
+pub fn ident_snake(name: &str) -> syn::Ident {
     let name = transform_id(name);
 
     syn::Ident::new(&name.to_case(Case::Snake), Span::call_site())

@@ -1,4 +1,4 @@
-mod group;
+pub mod group;
 
 use convert_case::{Case, Casing};
 use crate::component::group::StructOrEnum;
