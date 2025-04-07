@@ -48,8 +48,8 @@ pub fn generate_component_root(
             (StructOrEnum::Struct(new_struct_unit(name)), Vec::new())
         }
 
-        SyntaxComponent::Definition { datatype, .. } => {
-            let suffix = if datatype.ends_with("()") { "Fn" } else { "Def" };
+        SyntaxComponent::Definition { datatype, quoted, .. } => {
+            let suffix = if *quoted { "" } else if datatype.ends_with("()") { "Fn" } else { "Def" };
             
             let datatype = &format!("{}{suffix}", datatype.to_case(Case::Pascal));
             let mut s = new_struct_unit(name);
@@ -97,7 +97,6 @@ pub fn generate_component_root(
 
         _ => {
             todo!("Component: {:#?} {:?}", component, name);
-            println!("Component: {:#?}", component);
         }
     };
 

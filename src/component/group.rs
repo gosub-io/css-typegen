@@ -69,6 +69,8 @@ pub fn generate_group_struct(
         syn::Fields::Unnamed(fields) => fields,
         _ => panic!("Expected unnamed fields"),
     };
+    
+    let mut group_name = 0;
 
     for component in components {
         match component {
@@ -85,10 +87,12 @@ pub fn generate_group_struct(
                 better_name.push_str("Unset");
             }
 
-            SyntaxComponent::Definition { datatype, .. } => { 
-                let suffix = if datatype.ends_with("()") { "Fn" } else { "Def" };
+            SyntaxComponent::Definition { datatype, quoted, .. } => { 
+                let suffix = if *quoted { "" } else if datatype.ends_with("()") { "Fn" } else { "Def" };
 
                 let ty = datatype.trim_end_matches("()");
+
+                println!("Definition Ty: {}", ty);
                 better_name.push_str(ty);
                 let ty = format!("{}{suffix}", ty.to_case(Case::Pascal));
 
@@ -125,7 +129,7 @@ pub fn generate_group_struct(
                     match res.0 {
                         StructOrEnum::Struct(s) => match s.fields {
                             Fields::Unit => {}
-                            Fields::Named(fn_fields) => {
+                            Fields::Named(_) => {
                                 
                                 
                                 
@@ -178,8 +182,9 @@ pub fn generate_group_struct(
                 ..
             } => {
                 let name_init = name.name.trim_end_matches("()");
-                let name_init = format!("{}Group", name_init);
-                let res = generate_group(components, combinator.clone(), Name::new(&name_init));
+                let name_init = format!("{name_init}Group{group_name}");
+                group_name += 1;
+                let res = generate_group(components, *combinator, Name::new(&name_init));
                 additional.extend(res.1);
 
                 match res.0 {
@@ -209,7 +214,6 @@ pub fn generate_group_struct(
                                     ty,
                                 })
                             }
-                            
                         },
                     },
                     StructOrEnum::Enum(e) => {
@@ -268,6 +272,8 @@ pub fn generate_group_enum(
     let mut ty = new_enum(name.name);
     let mut additional = Vec::new();
     let mut better_name = String::new();
+    
+    let mut group_name = 0;
 
     for component in components {
         match component {
@@ -306,8 +312,8 @@ pub fn generate_group_enum(
                 });
             }
 
-            SyntaxComponent::Definition { datatype, .. } => {
-                let suffix = if datatype.ends_with("()") { "Fn" } else { "Def" };
+            SyntaxComponent::Definition { datatype, quoted, .. } => {
+                let suffix = if *quoted { "" } else if datatype.ends_with("()") { "Fn" } else { "Def" };
                 let id = datatype.to_case(Case::Pascal);
                 let id = id.trim_end_matches("()");
 
@@ -373,7 +379,8 @@ pub fn generate_group_enum(
                 combinator,
                 ..
             } => {
-                let res = generate_group(components, combinator.clone(), Name::new(&format!("{}Group", name.name)));
+                let res = generate_group(components, *combinator, Name::new(&format!("Group{group_name}")));
+                group_name += 1;
                 additional.extend(res.1);
                 match res.0 {
                     //TODO there needs to be another name for the group
