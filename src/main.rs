@@ -1,18 +1,18 @@
 use convert_case::{Case, Casing};
 use css_typegen::component::generate_component_root;
-use gosub_css3::matcher::property_definitions::{get_css_definitions, SyntaxType};
+use gosub_css3::matcher::property_definitions::{get_css_properties, get_css_values, SyntaxType};
 use indexmap::IndexSet;
-use proc_macro2::{Ident, Span, TokenStream};
 use syn::__private::ToTokens;
 use css_typegen::component::group::StructOrEnum;
-use css_typegen::ident;
+use css_typegen::{builtins, ident};
 
 fn main() {
-    let defs = get_css_definitions();
+    let props = get_css_properties();
+    let values = get_css_values();
     
     let mut items = IndexSet::new();
 
-    for def in &defs.properties {
+    for def in props {
         if def.1.syntax.components.is_empty() {
             continue;
         }
@@ -28,7 +28,8 @@ fn main() {
         items.insert(res.0);
     }
 
-    for def in &defs.syntax {
+    for def in values {
+        // break;
         if def.1.syntax.components.is_empty() {
             continue;
         }
@@ -57,8 +58,8 @@ fn main() {
 
         items.insert(res.0);
     }
-
-    let mut output = TokenStream::new();
+    
+    let mut output = builtins::get();
     
     for item in items {
         item.to_tokens(&mut output);

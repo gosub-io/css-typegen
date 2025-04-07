@@ -1,6 +1,7 @@
 pub mod component;
 pub mod multiplier;
 mod value;
+pub mod builtins;
 
 use convert_case::{Case, Casing};
 use proc_macro2::Span;
@@ -78,7 +79,7 @@ pub fn ident_snake(name: &str) -> syn::Ident {
 
 
 #[derive(Debug, Clone, Copy)]
-struct Name<'a> {
+pub struct Name<'a> {
     pub name: &'a str,
     pub find_better_name: bool,
 }
