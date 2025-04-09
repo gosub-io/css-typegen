@@ -34,7 +34,9 @@ fn main() {
             continue;
         }
 
-        let Some(mut res) = generate_component_root(&def.1.syntax.components[0], &def.0) else {
+        let name = if def.0.contains("()") {format!("{}Fn", def.0.to_case(Case::Pascal))} else {format!("{}Def", def.0.to_case(Case::Pascal))};
+
+        let Some(mut res) = generate_component_root(&def.1.syntax.components[0], &name) else {
             continue;
         };
 

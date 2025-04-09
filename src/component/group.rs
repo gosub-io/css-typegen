@@ -88,11 +88,10 @@ pub fn generate_group_struct(
             }
 
             SyntaxComponent::Definition { datatype, quoted, .. } => { 
-                let suffix = if *quoted { "" } else if datatype.ends_with("()") { "Fn" } else { "Def" };
+                let suffix = if *quoted { "" } else if datatype.contains("()") { "Fn" } else { "Def" };
 
                 let ty = datatype.trim_end_matches("()");
 
-                println!("Definition Ty: {}", ty);
                 better_name.push_str(ty);
                 let ty = format!("{}{suffix}", ty.to_case(Case::Pascal));
 
@@ -313,15 +312,16 @@ pub fn generate_group_enum(
             }
 
             SyntaxComponent::Definition { datatype, quoted, .. } => {
-                let suffix = if *quoted { "" } else if datatype.ends_with("()") { "Fn" } else { "Def" };
+                println!("Datatype: {}", datatype);
+                let suffix = if *quoted { "" } else if datatype.contains("()") { "Fn" } else { "Def" };
                 let id = datatype.to_case(Case::Pascal);
-                let id = id.trim_end_matches("()");
+                let id = id.replace("()", "");
 
-                better_name.push_str(id);
+                better_name.push_str(&id);
                 let id_def = &format!("{}{suffix}", id);
 
 
-                let id = Ident::new(id, Span::call_site());
+                let id = Ident::new(&id, Span::call_site());
                 let id_def = Ident::new(id_def, Span::call_site());
 
                 ty.variants.push(syn::Variant {

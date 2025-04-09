@@ -11,6 +11,7 @@ pub fn generate_component_root(
     component: &SyntaxComponent,
     name: &str,
 ) -> Option<(StructOrEnum, Vec<StructOrEnum>)> {
+
     let (mut own, mut other) = match component {
         SyntaxComponent::Function {
             name,
@@ -49,7 +50,7 @@ pub fn generate_component_root(
         }
 
         SyntaxComponent::Definition { datatype, quoted, .. } => {
-            let suffix = if *quoted { "" } else if datatype.ends_with("()") { "Fn" } else { "Def" };
+            let suffix = if *quoted { "" } else if datatype.contains("()") { "Fn" } else { "Def" };
             
             let datatype = &format!("{}{suffix}", datatype.to_case(Case::Pascal));
             let mut s = new_struct_unit(name);
@@ -72,7 +73,10 @@ pub fn generate_component_root(
             (StructOrEnum::Struct(s), Vec::new())
         }
 
-        SyntaxComponent::Literal { .. } => return None,
+        SyntaxComponent::Literal { .. } => {
+            (StructOrEnum::Struct(new_struct_unit(name)), Vec::new())
+
+        },
 
         SyntaxComponent::Builtin { datatype, .. } => {
             let mut s = new_struct_unit(name);

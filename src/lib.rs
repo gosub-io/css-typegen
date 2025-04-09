@@ -47,8 +47,8 @@ fn new_struct_unit(name: &str) -> ItemStruct {
     }
 }
 
-fn transform_id(name: &str) -> String {
-    let mut name = name.replace(['+', '(', ')'], "");
+pub fn transform_id(name: &str) -> String {
+    let mut name = name.replace(['+', '(', ')', '<', '>'], "");
 
     if name.starts_with(char::is_numeric) {
         return format!("_{}", name);

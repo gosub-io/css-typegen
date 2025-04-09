@@ -2,7 +2,7 @@ use proc_macro2::TokenStream;
 use syn::__private::quote::quote;
 use crate::ident;
 
-const BUILTIN_DATA_TYPES: [&str; 38] = [
+const BUILTIN_DATA_TYPES: &[&str] = &[
     "absolute-size",
     "age",
     "angle",
@@ -39,8 +39,27 @@ const BUILTIN_DATA_TYPES: [&str; 38] = [
     "uri",
     "url-set",
     "url-token",
+    "dimension",
+    "ident-token",
+    "url-modifier",
+    "media-query-list",
+    "declaration",
+    "string-token",
+    "attr()",
+    "<content()>",
+    "zero",
+    "declaration-value",
+    "custom-property-name",
     "x",
     "y",
+    "element()",
+    "any-value",
+    "n-dimension",
+    "ndashdigit-dimension",
+    "ndashdigit-ident",
+    "signed-integer",
+    "signless-integer",
+    "hash-token"
     // "color()",
 ];
 
@@ -50,8 +69,8 @@ pub fn get() -> TokenStream {
     let mut items = TokenStream::new();
     
     for dt in BUILTIN_DATA_TYPES {
-        let id = if dt.ends_with("()") {
-            ident(&dt)
+        let id = if dt.contains("()") {
+            ident(&dt.replace("()", "Fn"))
         } else {
             ident(&format!("{}Def", dt))
         };
