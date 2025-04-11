@@ -55,11 +55,14 @@ const BUILTIN_DATA_TYPES: &[&str] = &[
     "element()",
     "any-value",
     "n-dimension",
+    "ndash-dimension",
     "ndashdigit-dimension",
     "ndashdigit-ident",
     "signed-integer",
     "signless-integer",
-    "hash-token"
+    "hash-token",
+    "function-token",
+    "dashndashdigit-ident",
     // "color()",
 ];
 

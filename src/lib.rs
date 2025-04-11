@@ -48,6 +48,10 @@ fn new_struct_unit(name: &str) -> ItemStruct {
 }
 
 pub fn transform_id(name: &str) -> String {
+    if name == "-infinity" {
+        return "NegInfinity".to_owned();
+    }
+
     let mut name = name.replace(['+', '(', ')', '<', '>'], "");
 
     if name.starts_with(char::is_numeric) {
