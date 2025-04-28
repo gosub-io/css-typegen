@@ -45,12 +45,12 @@ pub fn generate_group(
     name: Name,
 ) -> (StructOrEnum, Vec<StructOrEnum>) {
     match combinator {
-        GroupCombinators::Juxtaposition | GroupCombinators::AllAnyOrder => {
+        GroupCombinators::Juxtaposition | GroupCombinators::AllAnyOrder | GroupCombinators::AtLeastOneAnyOrder => {
             let res = generate_group_struct(components, name);
             (StructOrEnum::Struct(res.0), res.1)
         }
 
-        GroupCombinators::AtLeastOneAnyOrder | GroupCombinators::ExactlyOne => {
+        GroupCombinators::ExactlyOne => {
             let res = generate_group_enum(components, name);
             (StructOrEnum::Enum(res.0), res.1)
         }
