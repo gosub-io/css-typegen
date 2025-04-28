@@ -46,7 +46,6 @@ const BUILTIN_DATA_TYPES: &[&str] = &[
     "declaration",
     "string-token",
     "attr()",
-    "<content()>",
     "zero",
     "declaration-value",
     "custom-property-name",
@@ -63,6 +62,22 @@ const BUILTIN_DATA_TYPES: &[&str] = &[
     "hash-token",
     "function-token",
     "dashndashdigit-ident",
+
+
+
+    "bool-in-parens",
+    "function-parameter",
+    "media-in-parens",
+    "mix-blend-mode",
+    "supports-in-parens",
+    "top",
+    "right",
+    "bottom",
+    "left",
+    "type()",
+    "mf-plain",
+    "supports-decl",
+    "calc-value"
     // "color()",
 ];
 

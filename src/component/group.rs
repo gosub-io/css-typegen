@@ -271,7 +271,7 @@ pub fn generate_group_enum(
     let mut ty = new_enum(name.name);
     let mut additional = Vec::new();
     let mut better_name = String::new();
-    
+
     let mut group_name = 0;
 
     for component in components {
@@ -281,10 +281,12 @@ pub fn generate_group_enum(
                 multipliers: _,
             } => {
                 better_name.push_str(&keyword.to_case(Case::Pascal));
+                let id = ident(keyword);
+
 
                 ty.variants.push(syn::Variant {
                     attrs: vec![],
-                    ident: ident(keyword),
+                    ident: id,
                     fields: syn::Fields::Unit,
                     discriminant: None,
                 });
@@ -469,7 +471,7 @@ pub fn generate_group_enum(
             }
         }
     }
-    
+
     if name.find_better_name && NAME_RANGE.contains(&better_name.len()) {
         ty.ident = ident(&better_name);
     }
