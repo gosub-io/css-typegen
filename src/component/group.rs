@@ -1,8 +1,8 @@
-use crate::component::generate_component_root;
+use crate::component::{generate_component_root, MULTIPLIERS};
 use crate::value::value_to_ident;
 use crate::{ident, new_enum, new_struct, Name};
 use convert_case::{Case, Casing};
-use gosub_css3::matcher::syntax::{GroupCombinators, SyntaxComponent};
+use gosub_css3::matcher::syntax::{GroupCombinators, SyntaxComponent, SyntaxComponentMultiplier};
 use proc_macro2::{Ident, Span};
 use std::fmt::Display;
 use std::slice;
@@ -12,6 +12,7 @@ use syn::{
     Field, FieldMutability, Fields, FieldsUnnamed, ItemEnum, ItemStruct, Path, Type, TypePath,
     Visibility,
 };
+use crate::multiplier::{multiply, multiply_fields};
 
 const NAME_RANGE: std::ops::Range<usize> = 5..50;
 
@@ -87,7 +88,7 @@ pub fn generate_group_struct(
                 better_name.push_str("Unset");
             }
 
-            SyntaxComponent::Definition { datatype, quoted, .. } => { 
+            SyntaxComponent::Definition { datatype, quoted, multipliers, .. } => { 
                 let suffix = if *quoted { "" } else if datatype.contains("()") { "Fn" } else { "Def" };
 
                 let ty = datatype.trim_end_matches("()");
@@ -96,6 +97,11 @@ pub fn generate_group_struct(
                 let ty = format!("{}{suffix}", ty.to_case(Case::Pascal));
 
                 let ty = Ident::new(&ty, Span::call_site());
+                
+                let ty = Type::Path(TypePath {
+                    qself: None,
+                    path: ty.into(),
+                });
 
                 fields.unnamed.push(Field {
                     attrs: Vec::new(),
@@ -103,16 +109,13 @@ pub fn generate_group_struct(
                     mutability: FieldMutability::None,
                     ident: None,
                     colon_token: None,
-                    ty: Type::Path(TypePath {
-                        qself: None,
-                        path: ty.into(),
-                    }),
+                    ty: multiply(ty, multipliers),
                 })
             }
 
             SyntaxComponent::Function {
                 name,
-                multipliers: _,
+                multipliers,
                 arguments,
             } => {
                 let name = name.to_case(Case::Pascal);
@@ -150,7 +153,7 @@ pub fn generate_group_struct(
                                     mutability: FieldMutability::None,
                                     ident: None,
                                     colon_token: None,
-                                    ty,
+                                    ty: multiply(ty, multipliers),
                                 })
                             },
                         },
@@ -163,10 +166,10 @@ pub fn generate_group_struct(
                                 mutability: FieldMutability::None,
                                 ident: None,
                                 colon_token: None,
-                                ty: Type::Path(TypePath {
+                                ty: multiply(Type::Path(TypePath {
                                     qself: None,
                                     path: Path::from(e.ident.clone()),
-                                }),
+                                }), multipliers),
                             });
 
                             additional.push(StructOrEnum::Enum(e));
@@ -178,7 +181,7 @@ pub fn generate_group_struct(
             SyntaxComponent::Group {
                 components,
                 combinator,
-                ..
+                multipliers,
             } => {
                 let name_init = name.name.trim_end_matches("()");
                 let name_init = format!("{name_init}Group{group_name}");
@@ -210,7 +213,7 @@ pub fn generate_group_struct(
                                     mutability: FieldMutability::None,
                                     ident: None,
                                     colon_token: None,
-                                    ty,
+                                    ty: multiply(ty, multipliers),
                                 })
                             }
                         },
@@ -222,10 +225,10 @@ pub fn generate_group_struct(
                             mutability: FieldMutability::None,
                             ident: None,
                             colon_token: None,
-                            ty: Type::Path(TypePath {
+                            ty: multiply(Type::Path(TypePath {
                                 qself: None,
                                 path: Path::from(e.ident.clone()),
-                            }),
+                            }), multipliers),
                         });
 
                         additional.push(StructOrEnum::Enum(e));
@@ -235,7 +238,7 @@ pub fn generate_group_struct(
 
             SyntaxComponent::Literal { .. } => {}
 
-            SyntaxComponent::Builtin { datatype, .. } => {
+            SyntaxComponent::Builtin { datatype, multipliers } => {
                 better_name.push_str(&datatype.to_case(Case::Pascal));
                 
                 fields.unnamed.push(Field {
@@ -244,10 +247,10 @@ pub fn generate_group_struct(
                     mutability: FieldMutability::None,
                     ident: None,
                     colon_token: None,
-                    ty: Type::Path(TypePath {
+                    ty: multiply(Type::Path(TypePath {
                         qself: None,
                         path: Path::from(ident(datatype)),
-                    }),
+                    }), multipliers),
                 })
             }
 
@@ -313,7 +316,7 @@ pub fn generate_group_enum(
                 });
             }
 
-            SyntaxComponent::Definition { datatype, quoted, .. } => {
+            SyntaxComponent::Definition { datatype, quoted, multipliers, .. } => {
                 println!("Datatype: {}", datatype);
                 let suffix = if *quoted { "" } else if datatype.contains("()") { "Fn" } else { "Def" };
                 let id = datatype.to_case(Case::Pascal);
@@ -337,10 +340,10 @@ pub fn generate_group_enum(
                             mutability: FieldMutability::None,
                             ident: None,
                             colon_token: None,
-                            ty: Type::Path(TypePath {
+                            ty: multiply(Type::Path(TypePath {
                                 qself: None,
                                 path: Path::from(id_def),
-                            }),
+                            }), multipliers),
                         }]),
                     }),
                     discriminant: None,
@@ -348,7 +351,7 @@ pub fn generate_group_enum(
             }
             SyntaxComponent::Function {
                 name,
-                multipliers: _,
+                multipliers,
                 arguments,
             } => {
                 let name = name.to_case(Case::Pascal);
@@ -363,7 +366,7 @@ pub fn generate_group_enum(
 
                     additional.extend(res.1);
 
-                    fix_fields(res.0.fields)
+                    fix_fields(res.0.fields, multipliers)
                 } else {
                     syn::Fields::Unit
                 };
@@ -379,7 +382,7 @@ pub fn generate_group_enum(
             SyntaxComponent::Group {
                 components,
                 combinator,
-                ..
+                multipliers,
             } => {
                 let res = generate_group(components, *combinator, Name::new(&format!("Group{group_name}")));
                 group_name += 1;
@@ -387,11 +390,15 @@ pub fn generate_group_enum(
                 match res.0 {
                     //TODO there needs to be another name for the group
                     StructOrEnum::Enum(e) => {
-                        ty.variants.extend(e.variants);
+                        ty.variants.extend(e.variants.into_iter().map(|mut v| {
+                            v.fields = fix_fields(v.fields, multipliers);
+                            
+                            v
+                        }));
                     }
 
                     StructOrEnum::Struct(s) => {
-                        let fields = fix_fields(s.fields);
+                        let fields = fix_fields(s.fields, multipliers);
                         
                         ty.variants.push(syn::Variant {
                             attrs: vec![],
@@ -438,7 +445,7 @@ pub fn generate_group_enum(
                 });
             }
 
-            SyntaxComponent::Builtin { datatype, .. } => {
+            SyntaxComponent::Builtin { datatype, multipliers } => {
                 better_name.push_str(&datatype.to_case(Case::Pascal));
 
                 ty.variants.push(syn::Variant {
@@ -452,10 +459,10 @@ pub fn generate_group_enum(
                             mutability: FieldMutability::None,
                             ident: None,
                             colon_token: None,
-                            ty: Type::Path(TypePath {
+                            ty: multiply(Type::Path(TypePath {
                                 qself: None,
                                 path: Path::from(ident(datatype)),
-                            }),
+                            }), multipliers),
                         }]),
                     }),
                     discriminant: None,
@@ -499,7 +506,7 @@ pub fn generate_group_enum(
 }
 
 
-fn fix_fields(fields: Fields) -> Fields {
+fn fix_fields(fields: Fields, multipliers: &[SyntaxComponentMultiplier]) -> Fields {
     match fields {
         Fields::Unnamed(mut fields) => {
             if fields.unnamed.is_empty() {
@@ -535,15 +542,21 @@ fn fix_fields(fields: Fields) -> Fields {
                 }
             }
 
-            Fields::Unnamed(fields)
+            Fields::Unnamed(multiply_fields(fields, multipliers))
         },
         
         Fields::Named(fields) => {
             if fields.named.is_empty() {
                 return Fields::Unit;
             }
-
-            Fields::Named(fields)
+            
+            match multipliers.len() {
+                0 => Fields::Named(fields),
+                1 if multipliers[0] == SyntaxComponentMultiplier::Once => {
+                    Fields::Named(fields)
+                }
+                _ => unimplemented!("Cannot handle multipliers for named fields"),
+            }
         },
 
         Fields::Unit => Fields::Unit,

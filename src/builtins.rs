@@ -83,8 +83,12 @@ const BUILTIN_DATA_TYPES: &[&str] = &[
 
 
 pub fn get() -> TokenStream {
-    
-    let mut items = TokenStream::new();
+    let mut items = quote! {
+        pub struct ZeroOrMore<T>(pub Vec<T>);
+        pub struct OneOrMore<T>(pub Vec<T>);
+        pub struct Between<const L: usize, const U: usize, T>(pub Vec<T>);
+        pub struct CommaSeparatedRepeat<const L: usize, const U: usize, T>(pub Vec<T>);
+    };
     
     for dt in BUILTIN_DATA_TYPES {
         let id = if dt.contains("()") {

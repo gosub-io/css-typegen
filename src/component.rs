@@ -1,21 +1,34 @@
 pub mod group;
 
+use std::cell::OnceCell;
+use std::collections::HashSet;
+use std::mem::MaybeUninit;
+use std::sync::{LazyLock, Mutex, OnceLock};
 use convert_case::{Case, Casing};
+use gosub_css3::matcher::shorthands::Multiplier;
 use crate::component::group::StructOrEnum;
 use crate::{ident, new_struct_unit};
-use gosub_css3::matcher::syntax::SyntaxComponent;
+use gosub_css3::matcher::syntax::{SyntaxComponent, SyntaxComponentMultiplier};
 use syn::punctuated::Punctuated;
 use syn::{FieldMutability, Fields, Path, Type, TypePath};
+use crate::multiplier::{multiply, multiply_fields};
+
+pub static MULTIPLIERS: LazyLock<Mutex<HashSet<Vec<SyntaxComponentMultiplier>>>> = LazyLock::new(|| Mutex::new(HashSet::new()));
 
 pub fn generate_component_root(
     component: &SyntaxComponent,
     name: &str,
 ) -> Option<(StructOrEnum, Vec<StructOrEnum>)> {
+    {
+        let mut mult = MULTIPLIERS.lock().unwrap();
+
+        mult.insert(component.multipliers().to_vec());
+    }
 
     let (mut own, mut other) = match component {
         SyntaxComponent::Function {
             name,
-            multipliers: _,
+            multipliers,
             arguments,
         } => {
             let name = format!("{}Fn", name.to_case(Case::Pascal));
@@ -49,13 +62,13 @@ pub fn generate_component_root(
             (StructOrEnum::Struct(new_struct_unit(name)), Vec::new())
         }
 
-        SyntaxComponent::Definition { datatype, quoted, .. } => {
+        SyntaxComponent::Definition { datatype, quoted, multipliers, .. } => {
             let suffix = if *quoted { "" } else if datatype.contains("()") { "Fn" } else { "Def" };
             
             let datatype = &format!("{}{suffix}", datatype.to_case(Case::Pascal));
             let mut s = new_struct_unit(name);
 
-            s.fields = Fields::Unnamed(syn::FieldsUnnamed {
+            let fields = syn::FieldsUnnamed {
                 paren_token: Default::default(),
                 unnamed: Punctuated::from_iter(vec![syn::Field {
                     attrs: vec![],
@@ -68,7 +81,11 @@ pub fn generate_component_root(
                         path: Path::from(ident(datatype)),
                     }),
                 }]),
-            });
+            };
+
+            let fields = multiply_fields(fields, multipliers);
+
+            s.fields = Fields::Unnamed(fields);
 
             (StructOrEnum::Struct(s), Vec::new())
         }
@@ -78,10 +95,10 @@ pub fn generate_component_root(
 
         },
 
-        SyntaxComponent::Builtin { datatype, .. } => {
+        SyntaxComponent::Builtin { datatype, multipliers } => {
             let mut s = new_struct_unit(name);
 
-            s.fields = Fields::Unnamed(syn::FieldsUnnamed {
+            let fields = syn::FieldsUnnamed {
                 paren_token: Default::default(),
                 unnamed: Punctuated::from_iter(vec![syn::Field {
                     attrs: vec![],
@@ -94,7 +111,11 @@ pub fn generate_component_root(
                         path: Path::from(ident(datatype)),
                     }),
                 }]),
-            });
+            };
+
+            let fields = multiply_fields(fields, multipliers);
+
+            s.fields = Fields::Unnamed(fields);
 
             (StructOrEnum::Struct(s), Vec::new())
         }
