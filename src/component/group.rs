@@ -4,6 +4,7 @@ use crate::{ident, new_enum, new_struct, Name};
 use convert_case::{Case, Casing};
 use gosub_css3::matcher::syntax::{GroupCombinators, SyntaxComponent, SyntaxComponentMultiplier};
 use proc_macro2::{Ident, Span};
+use std::collections::{HashMap, HashSet};
 use std::fmt::Display;
 use std::slice;
 use syn::__private::ToTokens;
@@ -38,6 +39,14 @@ impl Display for StructOrEnum {
             StructOrEnum::Enum(e) => write!(f, "{}", e.to_token_stream()),
         }
     }
+}
+
+#[derive(Clone)]
+struct VariantInfo {
+    base: String,
+    kind: String,
+    args: Option<Vec<String>>,
+    variant: syn::Variant,
 }
 
 pub fn generate_group(
@@ -277,234 +286,335 @@ pub fn generate_group_enum(
 
     let mut group_name = 0;
 
-    for component in components {
+    let mut candidates: Vec<VariantInfo> = Vec::new();
+
+    for (i, component) in components.iter().enumerate() {
         match component {
-            SyntaxComponent::GenericKeyword {
-                keyword,
-                multipliers: _,
-            } => {
+            SyntaxComponent::GenericKeyword { keyword, .. } => {
                 better_name.push_str(&keyword.to_case(Case::Pascal));
                 let id = ident(keyword);
-
-
-                ty.variants.push(syn::Variant {
-                    attrs: vec![],
-                    ident: id,
-                    fields: syn::Fields::Unit,
-                    discriminant: None,
+                candidates.push(VariantInfo {
+                    base: id.to_string(),
+                    kind: "GenericKeyword".to_string(),
+                    args: None,
+                    variant: syn::Variant {
+                        attrs: vec![],
+                        ident: id,
+                        fields: syn::Fields::Unit,
+                        discriminant: None,
+                    },
                 });
             }
             SyntaxComponent::Inherit { .. } => {
                 better_name.push_str("Inherit");
-
-                ty.variants.push(syn::Variant {
-                    attrs: vec![],
-                    ident: Ident::new("Inherit", Span::call_site()),
-                    fields: syn::Fields::Unit,
-                    discriminant: None,
+                candidates.push(VariantInfo {
+                    base: "Inherit".to_string(),
+                    kind: "Inherit".to_string(),
+                    args: None,
+                    variant: syn::Variant {
+                        attrs: vec![],
+                        ident: Ident::new("Inherit", Span::call_site()),
+                        fields: syn::Fields::Unit,
+                        discriminant: None,
+                    },
                 });
             }
-
             SyntaxComponent::Initial { .. } => {
                 better_name.push_str("Initial");
-
-                ty.variants.push(syn::Variant {
-                    attrs: vec![],
-                    ident: Ident::new("Initial", Span::call_site()),
-                    fields: syn::Fields::Unit,
-                    discriminant: None,
+                candidates.push(VariantInfo {
+                    base: "Initial".to_string(),
+                    kind: "Initial".to_string(),
+                    args: None,
+                    variant: syn::Variant {
+                        attrs: vec![],
+                        ident: Ident::new("Initial", Span::call_site()),
+                        fields: syn::Fields::Unit,
+                        discriminant: None,
+                    },
                 });
             }
-
             SyntaxComponent::Definition { datatype, quoted, multipliers, .. } => {
-                println!("Datatype: {}", datatype);
                 let suffix = if *quoted { "" } else if datatype.contains("()") { "Fn" } else { "Def" };
-                let id = datatype.to_case(Case::Pascal);
-                let id = id.replace("()", "");
-
+                let id = datatype.to_case(Case::Pascal).replace("()", "");
                 better_name.push_str(&id);
+                
                 let id_def = &format!("{}{suffix}", id);
-
-
                 let id = Ident::new(&id, Span::call_site());
                 let id_def = Ident::new(id_def, Span::call_site());
-
-                ty.variants.push(syn::Variant {
-                    attrs: vec![],
-                    ident: id.clone(),
-                    fields: syn::Fields::Unnamed(syn::FieldsUnnamed {
-                        paren_token: Default::default(),
-                        unnamed: Punctuated::from_iter(vec![syn::Field {
-                            attrs: vec![],
-                            vis: syn::Visibility::Inherited,
-                            mutability: FieldMutability::None,
-                            ident: None,
-                            colon_token: None,
-                            ty: multiply(Type::Path(TypePath {
-                                qself: None,
-                                path: Path::from(id_def),
-                            }), multipliers),
-                        }]),
-                    }),
-                    discriminant: None,
+                
+                candidates.push(VariantInfo {
+                    base: id.to_string(),
+                    kind: suffix.to_string(),
+                    args: None,
+                    variant: syn::Variant {
+                        attrs: vec![],
+                        ident: id.clone(),
+                        fields: syn::Fields::Unnamed(syn::FieldsUnnamed {
+                            paren_token: Default::default(),
+                            unnamed: Punctuated::from_iter(vec![syn::Field {
+                                attrs: vec![],
+                                vis: syn::Visibility::Inherited,
+                                mutability: FieldMutability::None,
+                                ident: None,
+                                colon_token: None,
+                                ty: multiply(Type::Path(TypePath {
+                                    qself: None,
+                                    path: Path::from(id_def),
+                                }), multipliers),
+                            }]),
+                        }),
+                        discriminant: None,
+                    },
                 });
             }
-            SyntaxComponent::Function {
-                name,
-                multipliers,
-                arguments,
-            } => {
-                let name = name.to_case(Case::Pascal);
+            SyntaxComponent::Function { name: fn_name, multipliers, arguments } => {
+                let name = fn_name.to_case(Case::Pascal);
                 better_name.push_str(&name);
                 let name_fn = &format!("{}Fn", name);
 
-                let fields = if let Some(arguments) = arguments {
+                let (fields, args_info) = if let Some(arguments) = arguments {
                     let res = generate_group_struct(
                         slice::from_ref(arguments),
                         name_fn.as_str().into()
                     );
-
                     additional.extend(res.1);
 
-                    fix_fields(res.0.fields, multipliers)
+                    let mut arg_names = Vec::new();
+                    match &res.0.fields {
+                        Fields::Unnamed(fn_fields) => {
+                            for f in &fn_fields.unnamed {
+                                arg_names.push(format!("{}", type_to_string(&f.ty)));
+                            }
+                        }
+                        _ => {}
+                    }
+                    (fix_fields(res.0.fields, multipliers), Some(arg_names))
                 } else {
-                    syn::Fields::Unit
+                    (syn::Fields::Unit, None)
                 };
 
-                ty.variants.push(syn::Variant {
-                    attrs: vec![],
-                    ident: Ident::new(&name, Span::call_site()),
-                    fields,
-                    discriminant: None,
+                candidates.push(VariantInfo {
+                    base: name.clone(),
+                    kind: "Fn".to_string(),
+                    args: args_info,
+                    variant: syn::Variant {
+                        attrs: vec![],
+                        ident: Ident::new(&name, Span::call_site()),
+                        fields,
+                        discriminant: None,
+                    },
                 });
             }
-
-            SyntaxComponent::Group {
-                components,
-                combinator,
-                multipliers,
-            } => {
+            SyntaxComponent::Group { components, combinator, multipliers } => {
                 let res = generate_group(components, *combinator, Name::new(&format!("Group{group_name}")));
                 group_name += 1;
                 additional.extend(res.1);
                 match res.0 {
-                    //TODO there needs to be another name for the group
                     StructOrEnum::Enum(e) => {
-                        ty.variants.extend(e.variants.into_iter().map(|mut v| {
-                            v.fields = fix_fields(v.fields, multipliers);
-                            
-                            v
-                        }));
+                        for v in e.variants {
+                            candidates.push(VariantInfo {
+                                base: v.ident.to_string(),
+                                kind: "GroupEnum".to_string(),
+                                args: None,
+                                variant: {
+                                    let mut v = v;
+                                    v.fields = fix_fields(v.fields, multipliers);
+                                    v
+                                },
+                            });
+                        }
                     }
-
                     StructOrEnum::Struct(s) => {
                         let fields = fix_fields(s.fields, multipliers);
-                        
-                        ty.variants.push(syn::Variant {
-                            attrs: vec![],
-                            ident: s.ident.clone(),
-                            fields,
-                            discriminant: None,
+                        candidates.push(VariantInfo {
+                            base: s.ident.to_string(),
+                            kind: "GroupStruct".to_string(),
+                            args: None,
+                            variant: syn::Variant {
+                                attrs: vec![],
+                                ident: s.ident.clone(),
+                                fields,
+                                discriminant: None,
+                            },
                         });
                     }
                 }
             }
-
             SyntaxComponent::Literal { literal, .. } => {
                 let lit = get_literal(literal);
-                
                 better_name.push_str(&lit);
-                
-                ty.variants.push(syn::Variant {
-                    attrs: vec![],
-                    ident: Ident::new(&lit, Span::call_site()),
-                    fields: syn::Fields::Unit,
-                    discriminant: None,
+                candidates.push(VariantInfo {
+                    base: lit.clone(),
+                    kind: "Literal".to_string(),
+                    args: None,
+                    variant: syn::Variant {
+                        attrs: vec![],
+                        ident: Ident::new(&lit, Span::call_site()),
+                        fields: syn::Fields::Unit,
+                        discriminant: None,
+                    },
                 });
             }
-
             SyntaxComponent::Unset { .. } => {
-                ty.variants.push(syn::Variant {
-                    attrs: vec![],
-                    ident: Ident::new("Unset", Span::call_site()),
-                    fields: syn::Fields::Unit,
-                    discriminant: None,
+                candidates.push(VariantInfo {
+                    base: "Unset".to_string(),
+                    kind: "Unset".to_string(),
+                    args: None,
+                    variant: syn::Variant {
+                        attrs: vec![],
+                        ident: Ident::new("Unset", Span::call_site()),
+                        fields: syn::Fields::Unit,
+                        discriminant: None,
+                    },
                 });
             }
-
             SyntaxComponent::Value { value, .. } => {
                 let name = value_to_ident(value);
-
                 better_name.push_str(&name.to_string());
-
-                ty.variants.push(syn::Variant {
-                    attrs: vec![],
-                    ident: Ident::new(&name, Span::call_site()),
-                    fields: syn::Fields::Unit,
-                    discriminant: None,
+                candidates.push(VariantInfo {
+                    base: name.to_string(),
+                    kind: "Value".to_string(),
+                    args: None,
+                    variant: syn::Variant {
+                        attrs: vec![],
+                        ident: Ident::new(&name, Span::call_site()),
+                        fields: syn::Fields::Unit,
+                        discriminant: None,
+                    },
                 });
             }
-
             SyntaxComponent::Builtin { datatype, multipliers } => {
                 better_name.push_str(&datatype.to_case(Case::Pascal));
-
-                ty.variants.push(syn::Variant {
-                    attrs: vec![],
-                    ident: ident(datatype),
-                    fields: Fields::Unnamed(FieldsUnnamed {
-                        paren_token: Default::default(),
-                        unnamed: Punctuated::from_iter(vec![Field {
-                            attrs: vec![],
-                            vis: syn::Visibility::Inherited,
-                            mutability: FieldMutability::None,
-                            ident: None,
-                            colon_token: None,
-                            ty: multiply(Type::Path(TypePath {
-                                qself: None,
-                                path: Path::from(ident(datatype)),
-                            }), multipliers),
-                        }]),
-                    }),
-                    discriminant: None,
+                candidates.push(VariantInfo {
+                    base: datatype.to_case(Case::Pascal),
+                    kind: "Builtin".to_string(),
+                    args: None,
+                    variant: syn::Variant {
+                        attrs: vec![],
+                        ident: ident(datatype),
+                        fields: Fields::Unnamed(FieldsUnnamed {
+                            paren_token: Default::default(),
+                            unnamed: Punctuated::from_iter(vec![Field {
+                                attrs: vec![],
+                                vis: syn::Visibility::Inherited,
+                                mutability: FieldMutability::None,
+                                ident: None,
+                                colon_token: None,
+                                ty: multiply(Type::Path(TypePath {
+                                    qself: None,
+                                    path: Path::from(ident(datatype)),
+                                }), multipliers),
+                            }]),
+                        }),
+                        discriminant: None,
+                    },
                 });
             }
-
             SyntaxComponent::Property { .. } => {
                 // what is this?
             }
-
             _ => {
                 todo!("Component: {:#?}", component);
             }
         }
     }
 
+    let mut name_map: HashMap<String, Vec<usize>> = HashMap::new();
+    for (i, c) in candidates.iter().enumerate() {
+        name_map.entry(c.base.clone()).or_default().push(i);
+    }
+
+    let mut used_names = HashSet::new();
+    for (base, idxs) in &name_map {
+        if idxs.len() == 1 {
+            let c = &mut candidates[idxs[0]];
+            let mut ident_str = c.base.clone();
+            let mut n = 1;
+            
+            while used_names.contains(&ident_str) {
+                ident_str = format!("{}{}", c.base, n);
+                n += 1;
+            }
+            c.variant.ident = ident(&ident_str);
+            used_names.insert(ident_str);
+        } else {
+            let all_fn = idxs.iter().all(|&i| candidates[i].kind == "Fn");
+            if all_fn {
+                let args_list: Vec<_> = idxs.iter().map(|&i| candidates[i].args.clone().unwrap_or_default()).collect();
+                let mut min_diff = vec![];
+                let max_args = args_list.iter().map(|a| a.len()).max().unwrap_or(0);
+                
+                for arg_idx in 0..max_args {
+                    let mut vals = HashSet::new();
+
+                    for args in &args_list {
+                        if let Some(val) = args.get(arg_idx) {
+                            vals.insert(val);
+                        }
+                    }
+                    
+                    if vals.len() > 1 {
+                        min_diff.push(arg_idx);
+                    }
+                }
+                for (j, &i) in idxs.iter().enumerate() {
+                    let c = &mut candidates[i];
+                    let mut ident_str = format!("{}Fn", c.base);
+
+                    if let Some(args) = &c.args {
+                        let mut parts = Vec::new();
+                        
+                        for &diff_idx in &min_diff {
+                            if let Some(arg) = args.get(diff_idx) {
+                                parts.push(arg.clone());
+                            }
+                        }
+                        
+                        if !parts.is_empty() {
+                            ident_str = format!("{}Fn{}", c.base, parts.join(""));
+                        }
+                    }
+                    
+                    let mut n = 1;
+                    let mut try_ident = ident_str.clone();
+                    
+                    while used_names.contains(&try_ident) {
+                        try_ident = format!("{}{}", ident_str, n); //TODO: this is bad, there always is something different out out and we need to find it, for now this fixes some errors
+                        n += 1;
+                    }
+                    
+                    c.variant.ident = ident(&try_ident);
+                    used_names.insert(try_ident);
+                }
+            } else {
+                for &i in idxs {
+                    let c = &mut candidates[i];
+                    let ident_str = format!("{}{}", c.base, c.kind);
+                    let mut n = 1;
+                    let mut try_ident = ident_str.clone();
+                    
+                    while used_names.contains(&try_ident) {
+                        try_ident = format!("{}{}", ident_str, n);
+                        n += 1;
+                    }
+                    
+                    c.variant.ident = ident(&try_ident);
+                    used_names.insert(try_ident);
+                }
+            }
+        }
+    }
+
+    for c in candidates {
+        ty.variants.push(c.variant);
+    }
+
     if name.find_better_name && NAME_RANGE.contains(&better_name.len()) {
         ty.ident = ident(&better_name);
     }
 
-    let name = name.name.to_lowercase();
-
-    for variant in ty.variants.iter_mut() {
-        let n = variant.ident.to_string();
-
-        if n.to_lowercase().starts_with(&name) {
-            let id = n[name.len()..].replace(&name, "");
-
-            if !id.is_empty() {
-                let id = ident(&id);
-
-                variant.ident = id;
-            }
-        }
-
-    }
-
-    // println!("Better name: {}", better_name);
-
     (ty, additional)
 }
-
 
 fn fix_fields(fields: Fields, multipliers: &[SyntaxComponentMultiplier]) -> Fields {
     match fields {
@@ -595,4 +705,12 @@ fn get_literal(literal: &str) -> String {
     }
 
     lit
+}
+
+fn type_to_string(ty: &Type) -> String {
+    match ty {
+        Type::Path(tp) => tp.path.segments.last().map(|s| s.ident.to_string()).unwrap_or_default(),
+        Type::Tuple(tup) => tup.elems.iter().map(type_to_string).collect::<Vec<_>>().join(""),
+        _ => format!("{:?}", ty),
+    }
 }
