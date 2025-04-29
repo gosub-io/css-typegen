@@ -476,6 +476,23 @@ pub fn generate_group_enum(
         ty.ident = ident(&better_name);
     }
 
+    let name = name.name.to_lowercase();
+
+    for variant in ty.variants.iter_mut() {
+        let n = variant.ident.to_string();
+
+        if n.to_lowercase().starts_with(&name) {
+            let id = n[name.len()..].replace(&name, "");
+
+            if !id.is_empty() {
+                let id = ident(&id);
+
+                variant.ident = id;
+            }
+        }
+
+    }
+
     // println!("Better name: {}", better_name);
 
     (ty, additional)
