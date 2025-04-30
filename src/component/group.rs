@@ -11,11 +11,15 @@ use syn::__private::ToTokens;
 use syn::punctuated::Punctuated;
 use syn::{
     Field, FieldMutability, Fields, FieldsUnnamed, ItemEnum, ItemStruct, Path, Type, TypePath,
-    Visibility,
+    Visibility, parse_quote,
 };
 use crate::multiplier::{multiply, multiply_fields};
 
 const NAME_RANGE: std::ops::Range<usize> = 5..50;
+
+const BOXES: &[&[&str]] = &[
+    &["ColorDef", "ColorBase"],
+];
 
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub enum StructOrEnum {
@@ -611,6 +615,21 @@ pub fn generate_group_enum(
 
     if name.find_better_name && NAME_RANGE.contains(&better_name.len()) {
         ty.ident = ident(&better_name);
+    }
+
+    for b in BOXES {
+        if ty.ident.to_string() == b[0] {
+            for variant in &mut ty.variants {
+                if variant.ident.to_string() == b[1] {
+                    if let syn::Fields::Unnamed(ref mut fields) = variant.fields {
+                        if let Some(field) = fields.unnamed.first_mut() {
+                            let orig_ty = field.ty.clone();
+                            field.ty = parse_quote!(Box<#orig_ty>);
+                        }
+                    }
+                }
+            }
+        }
     }
 
     (ty, additional)
