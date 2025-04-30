@@ -410,7 +410,7 @@ pub fn generate_group_enum(
                 });
             }
             SyntaxComponent::Group { components, combinator, multipliers } => {
-                let res = generate_group(components, *combinator, Name::new(&format!("Group{group_name}")));
+                let res = generate_group(components, *combinator, Name::new(&format!("{}Group{}", name.name, group_name)));
                 group_name += 1;
                 additional.extend(res.1);
                 match res.0 {
