@@ -7,10 +7,8 @@ description = "Gosub browser using GTK"
 license = "MIT"
 
 [dependencies]
-gosub_css3 = { path = "../../public/gosub-engine/crates/gosub_css3" , features = ["unresolved_syntax"]}
-#gosub_css3 = { version = "0.1.1", registry = "gosub" }
-
-syn = {version = "2.0.98", features = ["full", "extra-traits"] }
+gosub_css3 = { version = "0.1.1", registry = "gosub" }
+syn = {version = "2.0.98", features = ["full", "extra-traits", "visit-mut"] }
 proc-macro2 = "1.0.93"
 convert_case = "0.8.0"
 indexmap = "2.8.0"
