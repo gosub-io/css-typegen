@@ -1,5 +1,5 @@
 use proc_macro2::Span;
-use syn::{visit_mut, File, Ident, ItemEnum, ItemStruct, TypePath};
+use syn::{visit_mut, Ident, ItemEnum, ItemStruct, TypePath};
 use syn::visit_mut::VisitMut;
 
 pub struct Renamer {

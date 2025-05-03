@@ -1,35 +1,22 @@
 pub mod group;
 
-use std::cell::OnceCell;
-use std::collections::HashSet;
-use std::mem::MaybeUninit;
-use std::sync::{LazyLock, Mutex, OnceLock};
 use convert_case::{Case, Casing};
-use gosub_css3::matcher::shorthands::Multiplier;
 use crate::component::group::StructOrEnum;
 use crate::{ident, new_struct_unit};
-use gosub_css3::matcher::syntax::{SyntaxComponent, SyntaxComponentMultiplier};
+use gosub_css3::matcher::syntax::SyntaxComponent;
 use syn::punctuated::Punctuated;
 use syn::{FieldMutability, Fields, Path, Type, TypePath};
-use crate::multiplier::{multiply, multiply_fields};
-
-pub static MULTIPLIERS: LazyLock<Mutex<HashSet<Vec<SyntaxComponentMultiplier>>>> = LazyLock::new(|| Mutex::new(HashSet::new()));
+use crate::multiplier::multiply_fields;
 
 pub fn generate_component_root(
     component: &SyntaxComponent,
     name: &str,
 ) -> Option<(StructOrEnum, Vec<StructOrEnum>)> {
-    {
-        let mut mult = MULTIPLIERS.lock().unwrap();
-
-        mult.insert(component.multipliers().to_vec());
-    }
-
     let (mut own, mut other) = match component {
         SyntaxComponent::Function {
             name,
-            multipliers,
             arguments,
+            ..
         } => {
             let name = format!("{}Fn", name.to_case(Case::Pascal));
             if let Some(arg) = arguments {

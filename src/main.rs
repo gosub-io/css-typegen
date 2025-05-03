@@ -1,10 +1,9 @@
 use convert_case::{Case, Casing};
 use css_typegen::component::group::StructOrEnum;
-use css_typegen::component::{generate_component_root, MULTIPLIERS};
+use css_typegen::component::{generate_component_root};
 use css_typegen::{builtins, ident};
 use gosub_css3::matcher::property_definitions::{get_css_properties, get_css_values, SyntaxType};
 use indexmap::IndexSet;
-use std::mem;
 use syn::__private::ToTokens;
 use syn::visit_mut::VisitMut;
 use css_typegen::renamer::Renamer;
@@ -83,10 +82,4 @@ fn main() {
     let out = prettyplease::unparse(&file);
 
     std::fs::write("out.rs", out).unwrap();
-
-    let multipliers = mem::take(&mut *MULTIPLIERS.lock().unwrap());
-
-    for multiplier in multipliers {
-        println!("MULTIPLIER: {:?}", multiplier);
-    }
 }

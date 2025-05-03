@@ -1,6 +1,5 @@
-use std::mem;
 use gosub_css3::matcher::syntax::SyntaxComponentMultiplier;
-use proc_macro2::{Ident, TokenStream};
+use proc_macro2::Ident;
 use syn::__private::ToTokens;
 use syn::{FieldsUnnamed, Type};
 use syn::parse::Parse;

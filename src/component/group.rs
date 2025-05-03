@@ -205,8 +205,8 @@ pub fn generate_group_struct(
                 match res.0 {
                     StructOrEnum::Struct(s) => match s.fields {
                         Fields::Unit => {}
-                        Fields::Named(fn_fields) => {
-                            // fields.unnamed.extend(fn_fields.named);
+                        Fields::Named(_) => {
+                            todo!()
                         }
                         Fields::Unnamed(fn_fields) => {
                             if !fn_fields.unnamed.is_empty() {
@@ -292,7 +292,7 @@ pub fn generate_group_enum(
 
     let mut candidates: Vec<VariantInfo> = Vec::new();
 
-    for (i, component) in components.iter().enumerate() {
+    for component in components.iter() {
         match component {
             SyntaxComponent::GenericKeyword { keyword, .. } => {
                 better_name.push_str(&keyword.to_case(Case::Pascal));
@@ -529,7 +529,7 @@ pub fn generate_group_enum(
     }
 
     let mut used_names = HashSet::new();
-    for (base, idxs) in &name_map {
+    for (_, idxs) in &name_map {
         if idxs.len() == 1 {
             let c = &mut candidates[idxs[0]];
             let mut ident_str = c.base.clone();
@@ -561,7 +561,7 @@ pub fn generate_group_enum(
                         min_diff.push(arg_idx);
                     }
                 }
-                for (j, &i) in idxs.iter().enumerate() {
+                for (_, &i) in idxs.iter().enumerate() {
                     let c = &mut candidates[i];
                     let mut ident_str = format!("{}Fn", c.base);
 
