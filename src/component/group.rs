@@ -1,4 +1,4 @@
-use crate::component::{generate_component_root, MULTIPLIERS};
+use crate::component::{generate_component_root};
 use crate::value::value_to_ident;
 use crate::{ident, new_enum, new_struct, Name};
 use convert_case::{Case, Casing};
@@ -7,6 +7,7 @@ use proc_macro2::{Ident, Span};
 use std::collections::{HashMap, HashSet};
 use std::fmt::Display;
 use std::slice;
+use std::sync::atomic::{AtomicU8, Ordering};
 use syn::__private::ToTokens;
 use syn::punctuated::Punctuated;
 use syn::{
@@ -58,14 +59,23 @@ pub fn generate_group(
     combinator: GroupCombinators,
     name: Name,
 ) -> (StructOrEnum, Vec<StructOrEnum>) {
+    static CENTER: AtomicU8 = AtomicU8::new(0);
+    const CENTER_NAMES: &[&str] = &["CenterLR", "CenterTB"];
+    
     match combinator {
         GroupCombinators::Juxtaposition | GroupCombinators::AllAnyOrder | GroupCombinators::AtLeastOneAnyOrder => {
-            let res = generate_group_struct(components, name);
+            let mut res = generate_group_struct(components, name);
+            if res.0.ident.to_string() == "Center" {
+                res.0.ident = ident(CENTER_NAMES[CENTER.fetch_add(1, Ordering::SeqCst) as usize]);
+            }
             (StructOrEnum::Struct(res.0), res.1)
         }
 
         GroupCombinators::ExactlyOne => {
-            let res = generate_group_enum(components, name);
+            let mut res = generate_group_enum(components, name);
+            if res.0.ident.to_string() == "Center" {
+                res.0.ident = ident(CENTER_NAMES[CENTER.fetch_add(1, Ordering::SeqCst) as usize]);
+            }
             (StructOrEnum::Enum(res.0), res.1)
         }
     }
