@@ -8,8 +8,17 @@ use syn::__private::ToTokens;
 use syn::visit_mut::VisitMut;
 use css_typegen::renamer::Renamer;
 
-const RENAME_ROOT: &[(&str, &str)] = &[("BgPositionDef", "BgPosition")];
-const RENAME_VARIANT: &[((&str, &str), &str)] = &[(("BgPosition", "BgPositionDefGroup1"), "LeftRightTopBottonCenter")];
+const RENAME_ROOT: &[(&str, &str)] = &[
+    ("BgPositionDef", "BgPosition"),
+    ("CursorGroup1", "CursorType"),
+    ("XLowLowMediumHighXHigh", "VoicePitch")
+];
+const RENAME_VARIANT: &[((&str, &str), &str)] = &[
+    (("BgPosition", "BgPositionDefGroup1"), "LeftRightTopBottonCenter"),
+    (("ColorScheme", "ColorSchemeGroup0"), "LightDark"),
+    (("StrokeDashJustify", "StrokeDashJustifyGroup0"), "StretchCompress"),
+    (("VoiceRange", "VoiceRangeGroup1"), "PitchFrequency")
+];
 
 fn main() {
     let props = get_css_properties();
