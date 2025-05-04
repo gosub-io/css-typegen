@@ -99,6 +99,7 @@ pub fn generate_group_struct(
     for component in components {
         match component {
             SyntaxComponent::GenericKeyword { keyword, .. } => {
+                //TODO: since we now also use structs for AtLeastOneAnyOrder we also need to handle keywords in that case
                 better_name.push_str(&keyword.to_case(Case::Pascal));
             }
             SyntaxComponent::Inherit { .. } => {
