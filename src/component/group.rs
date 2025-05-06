@@ -64,7 +64,7 @@ pub fn generate_group(
     
     match combinator {
         GroupCombinators::Juxtaposition | GroupCombinators::AllAnyOrder | GroupCombinators::AtLeastOneAnyOrder => {
-            let mut res = generate_group_struct(components, name);
+            let mut res = generate_group_struct(components, name, combinator == GroupCombinators::AtLeastOneAnyOrder);
             if res.0.ident.to_string() == "Center" {
                 res.0.ident = ident(CENTER_NAMES[CENTER.fetch_add(1, Ordering::SeqCst) as usize]);
             }
@@ -84,6 +84,7 @@ pub fn generate_group(
 pub fn generate_group_struct(
     components: &[SyntaxComponent],
     name: Name,
+    is_aloao: bool, //is_at_least_one_any_order
 ) -> (ItemStruct, Vec<StructOrEnum>) {
     let mut ty = new_struct(name.name);
     let mut additional = Vec::new();
@@ -99,16 +100,31 @@ pub fn generate_group_struct(
     for component in components {
         match component {
             SyntaxComponent::GenericKeyword { keyword, .. } => {
-                //TODO: since we now also use structs for AtLeastOneAnyOrder we also need to handle keywords in that case
+                if is_aloao {
+                    let keyword = ident(keyword);
+                    fields.unnamed.push(parse_quote!(#keyword));
+                    
+                    additional.push(StructOrEnum::Struct(parse_quote!(struct #keyword;)));
+                }
+                
                 better_name.push_str(&keyword.to_case(Case::Pascal));
             }
             SyntaxComponent::Inherit { .. } => {
+                if is_aloao {
+                    fields.unnamed.push(parse_quote!(Inherit))
+                }
                 better_name.push_str("Inherit");
             }
             SyntaxComponent::Initial { .. } => {
+                if is_aloao {
+                    fields.unnamed.push(parse_quote!(Initial))
+                }
                 better_name.push_str("Initial");
             }
             SyntaxComponent::Unset { .. } => {
+                if is_aloao {
+                    fields.unnamed.push(parse_quote!(Unset))
+                }
                 better_name.push_str("Unset");
             }
 
@@ -390,7 +406,8 @@ pub fn generate_group_enum(
                 let (fields, args_info) = if let Some(arguments) = arguments {
                     let res = generate_group_struct(
                         slice::from_ref(arguments),
-                        name_fn.as_str().into()
+                        name_fn.as_str().into(),
+                        false
                     );
                     additional.extend(res.1);
 
