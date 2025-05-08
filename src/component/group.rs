@@ -102,7 +102,7 @@ pub fn generate_group_struct(
             SyntaxComponent::GenericKeyword { keyword, .. } => {
                 if is_aloao {
                     let keyword = ident(keyword);
-                    fields.unnamed.push(parse_quote!(#keyword));
+                    fields.unnamed.push(parse_quote!(Option<#keyword>));
                     
                     additional.push(StructOrEnum::Struct(parse_quote!(struct #keyword;)));
                 }
@@ -111,19 +111,19 @@ pub fn generate_group_struct(
             }
             SyntaxComponent::Inherit { .. } => {
                 if is_aloao {
-                    fields.unnamed.push(parse_quote!(Inherit))
+                    fields.unnamed.push(parse_quote!(Option<Inherit>))
                 }
                 better_name.push_str("Inherit");
             }
             SyntaxComponent::Initial { .. } => {
                 if is_aloao {
-                    fields.unnamed.push(parse_quote!(Initial))
+                    fields.unnamed.push(parse_quote!(Option<Initial>))
                 }
                 better_name.push_str("Initial");
             }
             SyntaxComponent::Unset { .. } => {
                 if is_aloao {
-                    fields.unnamed.push(parse_quote!(Unset))
+                    fields.unnamed.push(parse_quote!(Option<Unset>))
                 }
                 better_name.push_str("Unset");
             }
@@ -142,6 +142,13 @@ pub fn generate_group_struct(
                     qself: None,
                     path: ty.into(),
                 });
+                
+                let mut multipliers = multipliers.clone();
+                
+                if is_aloao && !multipliers.contains(&SyntaxComponentMultiplier::Optional) {
+                    multipliers.push(SyntaxComponentMultiplier::Optional);
+                    
+                }
 
                 fields.unnamed.push(Field {
                     attrs: Vec::new(),
@@ -149,7 +156,7 @@ pub fn generate_group_struct(
                     mutability: FieldMutability::None,
                     ident: None,
                     colon_token: None,
-                    ty: multiply(ty, multipliers),
+                    ty: multiply(ty, &multipliers),
                 })
             }
 
