@@ -3,6 +3,7 @@ pub mod multiplier;
 mod value;
 pub mod builtins;
 pub mod renamer;
+pub mod exporter;
 
 use convert_case::{Case, Casing};
 use proc_macro2::Span;

@@ -6,6 +6,7 @@ use gosub_css3::matcher::property_definitions::{get_css_properties, get_css_valu
 use indexmap::IndexSet;
 use syn::__private::ToTokens;
 use syn::visit_mut::VisitMut;
+use css_typegen::exporter::ExportAll;
 use css_typegen::renamer::Renamer;
 
 const RENAME_ROOT: &[(&str, &str)] = &[
@@ -87,6 +88,8 @@ fn main() {
     
     let mut renamer = Renamer::new(RENAME_ROOT, RENAME_VARIANT);
     renamer.visit_file_mut(&mut file);
+    
+    ExportAll.visit_file_mut(&mut file);
 
     let out = prettyplease::unparse(&file);
 
