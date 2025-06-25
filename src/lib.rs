@@ -4,6 +4,7 @@ mod value;
 pub mod builtins;
 pub mod renamer;
 pub mod exporter;
+mod repr;
 
 use convert_case::{Case, Casing};
 use proc_macro2::Span;
