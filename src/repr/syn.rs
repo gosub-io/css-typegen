@@ -1,5 +1,5 @@
 use crate::component::group::StructOrEnum;
-use crate::repr::{Combinator, CssItem, CssRepr, CssTree, CssType, CssTypeRepr};
+use crate::repr::{Multiplier, CssItem, CssRepr, CssTree, CssType, CssTypeRepr};
 use proc_macro2::Ident;
 use syn::__private::ToTokens;
 use syn::parse::Parse;
@@ -116,17 +116,17 @@ impl CssItem {
         }
 
         Some(match self.combinator {
-            Combinator::None => ty,
-            Combinator::Optional => apply_multiplier_internal("Option", ty, None, false),
-            Combinator::ZeroOrMore => apply_multiplier_internal("ZeroOrMore", ty, None, false),
+            Multiplier::None => ty,
+            Multiplier::Optional => apply_multiplier_internal("Option", ty, None, false),
+            Multiplier::ZeroOrMore => apply_multiplier_internal("ZeroOrMore", ty, None, false),
 
-            Combinator::OneOrMore => apply_multiplier_internal("OneOrMore", ty, None, false),
+            Multiplier::OneOrMore => apply_multiplier_internal("OneOrMore", ty, None, false),
 
-            Combinator::Between(l, u) => {
+            Multiplier::Between(l, u) => {
                 apply_multiplier_internal("Between", ty, Some((l, u)), false)
             }
 
-            Combinator::CommaSeparatedRepeat(l, u) => {
+            Multiplier::CommaSeparatedRepeat(l, u) => {
                 apply_multiplier_internal("CommaSeparatedRepeat", ty, Some((l, u)), false)
             }
         })
@@ -148,8 +148,8 @@ impl CssRepr {
                 path: Ident::new(&format!("{def}Def"), proc_macro2::Span::call_site()).into(),
             }),
             Self::Lit(_) => return None,
-            Self::Group(g) => {
-                g.to_type(is_aloao)?
+            Self::Group(is_aloao, g) => {
+                g.to_type(*is_aloao)?
             }
             Self::Keyword(_, kw_id) => {
                 if is_aloao {

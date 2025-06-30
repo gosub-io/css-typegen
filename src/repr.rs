@@ -1,3 +1,5 @@
+use gosub_css3::matcher::syntax::GroupCombinators;
+
 mod syn;
 
 pub enum CssRepr {
@@ -5,17 +7,17 @@ pub enum CssRepr {
     Sub(String),
     Definition(String),
     Lit(String),
-    Group(CssTree),
+    Group(bool, CssTree),
     Keyword(String, String),
 }
 
 pub struct CssItem {
-    pub combinator: Combinator,
+    pub combinator: Multiplier,
     pub repr: CssRepr,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum Combinator {
+pub enum Multiplier {
     None,
     Optional,
     ZeroOrMore,
