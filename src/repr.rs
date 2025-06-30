@@ -1,11 +1,12 @@
 mod syn;
 
 pub enum CssRepr {
-    Function(CssTree),
+    Function(String, CssTree),
     Sub(String),
     Definition(String),
     Lit(String),
     Group(CssTree),
+    Keyword(String, String),
 }
 
 pub struct CssItem {
@@ -25,9 +26,15 @@ pub enum Combinator {
 
 
 
-pub enum CssType {
+pub enum CssTypeRepr {
     Enum(Vec<(String, CssTree)>),
     Struct(CssTree),
+}
+
+pub struct CssType {
+    pub name: String,
+    pub id: String,
+    pub repr: CssTypeRepr,
 }
 
 pub struct CssTree {

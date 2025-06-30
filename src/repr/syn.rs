@@ -1,19 +1,48 @@
-use proc_macro2::Ident;
 use crate::component::group::StructOrEnum;
-use crate::repr::{Combinator, CssItem, CssRepr, CssTree, CssType};
-use syn::punctuated::Punctuated;
-use syn::{Field, Fields, FieldsUnnamed, Type, TypeTuple};
+use crate::repr::{Combinator, CssItem, CssRepr, CssTree, CssType, CssTypeRepr};
+use proc_macro2::Ident;
 use syn::__private::ToTokens;
 use syn::parse::Parse;
+use syn::punctuated::Punctuated;
+use syn::{Field, Fields, FieldsUnnamed, Type};
 
 impl CssType {
     pub fn to_type(&self) -> StructOrEnum {
-        match self {
-            CssType::Enum(variants) => {
-                todo!()
+        match &self.repr {
+            CssTypeRepr::Enum(variants) => {
+                let mut enum_variants = Punctuated::new();
+
+                for (name, tree) in variants {
+                    let fields = tree.to_fields(false);
+                    enum_variants.push(syn::Variant {
+                        attrs: Vec::new(),
+                        ident: Ident::new(name, proc_macro2::Span::call_site()),
+                        fields,
+                        discriminant: None,
+                    });
+                }
+
+                StructOrEnum::Enum(syn::ItemEnum {
+                    attrs: Vec::new(),
+                    vis: syn::Visibility::Inherited,
+                    enum_token: Default::default(),
+                    ident: Ident::new(&self.id, proc_macro2::Span::call_site()),
+                    generics: Default::default(),
+                    brace_token: Default::default(),
+                    variants: enum_variants,
+                })
             }
-            CssType::Struct(fields) => {
-                todo!()
+            CssTypeRepr::Struct(fields) => {
+                let fields = fields.to_fields(false);
+                StructOrEnum::Struct(syn::ItemStruct {
+                    attrs: Vec::new(),
+                    vis: syn::Visibility::Inherited,
+                    struct_token: Default::default(),
+                    ident: Ident::new(&self.id, proc_macro2::Span::call_site()),
+                    generics: Default::default(),
+                    fields,
+                    semi_token: Some(Default::default()),
+                })
             }
         }
     }
@@ -39,11 +68,34 @@ impl CssTree {
                 });
             }
         }
-        
+
         Fields::Unnamed(FieldsUnnamed {
             paren_token: Default::default(),
             unnamed: elems,
         })
+    }
+    
+    pub fn to_type(&self, is_aloao: bool) -> Option<Type> {
+        if self.items.is_empty() {
+            return None;
+        }
+
+        let mut elems = Punctuated::new();
+
+        for item in &self.items {
+            if let Some(ty) = item.to_type(is_aloao) {
+                elems.push(ty);
+            }
+        }
+
+        if elems.len() == 1 {
+            Some(elems.into_iter().next().unwrap())
+        } else {
+            Some(Type::Tuple(syn::TypeTuple {
+                paren_token: Default::default(),
+                elems,
+            }))
+        }
     }
 }
 
@@ -54,7 +106,7 @@ impl CssItem {
         match ty {
             Type::Paren(paren) => {
                 ty = *paren.elem;
-            },
+            }
 
             Type::Tuple(tuple) if tuple.elems.len() == 1 => {
                 ty = tuple.elems.into_iter().next().unwrap();
@@ -62,28 +114,21 @@ impl CssItem {
 
             _ => {}
         }
-        
-        
+
         Some(match self.combinator {
             Combinator::None => ty,
-            Combinator::Optional => {
-                apply_multiplier_internal("Option", ty, None, false)
-            },
-            Combinator::ZeroOrMore => {
-                apply_multiplier_internal("ZeroOrMore", ty, None, false)
-            },
+            Combinator::Optional => apply_multiplier_internal("Option", ty, None, false),
+            Combinator::ZeroOrMore => apply_multiplier_internal("ZeroOrMore", ty, None, false),
 
-            Combinator::OneOrMore => {
-                apply_multiplier_internal("OneOrMore", ty, None, false)
-            },
+            Combinator::OneOrMore => apply_multiplier_internal("OneOrMore", ty, None, false),
 
             Combinator::Between(l, u) => {
                 apply_multiplier_internal("Between", ty, Some((l, u)), false)
-            },
+            }
 
             Combinator::CommaSeparatedRepeat(l, u) => {
                 apply_multiplier_internal("CommaSeparatedRepeat", ty, Some((l, u)), false)
-            },
+            }
         })
     }
 }
@@ -91,27 +136,31 @@ impl CssItem {
 impl CssRepr {
     pub fn to_type(&self, is_aloao: bool) -> Option<Type> {
         Some(match self {
-            Self::Function(f) => {
-                todo!()
-                
-            },
-            Self::Sub(sub) => {
-                todo!()
-                
-            },
-            Self::Definition(def) => {
-                todo!()
-                
-            },
-            Self::Lit(lit) => {
-                todo!()
-                
-            },
+            Self::Function(_, f) => {
+                f.to_type(is_aloao)?
+            }
+            Self::Sub(sub) => Type::Path(syn::TypePath {
+                qself: None,
+                path: Ident::new(sub, proc_macro2::Span::call_site()).into(),
+            }),
+            Self::Definition(def) => Type::Path(syn::TypePath {
+                qself: None,
+                path: Ident::new(&format!("{def}Def"), proc_macro2::Span::call_site()).into(),
+            }),
+            Self::Lit(_) => return None,
             Self::Group(g) => {
-                todo!()
-                
-            },
-            
+                g.to_type(is_aloao)?
+            }
+            Self::Keyword(_, kw_id) => {
+                if is_aloao {
+                    Type::Path(syn::TypePath {
+                        qself: None,
+                        path: Ident::new(kw_id, proc_macro2::Span::call_site()).into(),
+                    })
+                } else {
+                    return None
+                }
+            }
         })
     }
 }
@@ -120,7 +169,12 @@ fn id(name: &str) -> syn::Ident {
     syn::Ident::new(&name, proc_macro2::Span::call_site())
 }
 
-fn apply_multiplier_internal<T: Parse>(multi: &str, fields: impl ToTokens, size: Option<(usize, usize)>, paren: bool) -> T {
+fn apply_multiplier_internal<T: Parse>(
+    multi: &str,
+    fields: impl ToTokens,
+    size: Option<(usize, usize)>,
+    paren: bool,
+) -> T {
     let multi = Ident::new(multi, proc_macro2::Span::call_site());
 
     if paren {
@@ -133,7 +187,6 @@ fn apply_multiplier_internal<T: Parse>(multi: &str, fields: impl ToTokens, size:
                 (#multi<#fields>)
             }
         }
-
     } else {
         if let Some((lower, upper)) = size {
             syn::parse_quote! {
