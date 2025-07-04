@@ -1,6 +1,6 @@
-use crate::component::{generate_component_root};
+use crate::component::{generate_component_root, generate_component_root_ty};
 use crate::value::value_to_ident;
-use crate::{ident, new_enum, new_struct, Name};
+use crate::{ident, ident_str, new_enum, new_struct, Name};
 use convert_case::{Case, Casing};
 use gosub_css3::matcher::syntax::{GroupCombinators, SyntaxComponent, SyntaxComponentMultiplier};
 use proc_macro2::{Ident, Span};
@@ -14,7 +14,9 @@ use syn::{
     Field, FieldMutability, Fields, FieldsUnnamed, ItemEnum, ItemStruct, Path, Type, TypePath,
     Visibility, parse_quote,
 };
+use crate::component::group::{get_literal, StructOrEnum};
 use crate::multiplier::{multiply, multiply_fields};
+use crate::repr::{CssItem, CssRepr, CssTree, CssType, CssTypeRepr, Multiplier};
 
 const NAME_RANGE: std::ops::Range<usize> = 5..50;
 
@@ -22,78 +24,59 @@ const BOXES: &[&[&str]] = &[
     &["ColorDef", "ColorBase"],
 ];
 
-#[derive(Debug, PartialEq, Eq, Hash)]
-pub enum StructOrEnum {
-    Struct(ItemStruct),
-    Enum(ItemEnum),
-}
 
-impl ToTokens for StructOrEnum {
-    fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
-        match self {
-            StructOrEnum::Struct(s) => s.to_tokens(tokens),
-            StructOrEnum::Enum(e) => e.to_tokens(tokens),
-        }
-    }
-}
-
-impl Display for StructOrEnum {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            StructOrEnum::Struct(s) => write!(f, "{}", s.to_token_stream()),
-            StructOrEnum::Enum(e) => write!(f, "{}", e.to_token_stream()),
-        }
-    }
-}
 
 #[derive(Clone)]
 struct VariantInfo {
     base: String,
     kind: String,
     args: Option<Vec<String>>,
-    variant: syn::Variant,
+    variant_name: String,
+    variant_id: String,
+    ty: CssTree,
 }
 
 pub fn generate_group(
     components: &[SyntaxComponent],
     combinator: GroupCombinators,
     name: Name,
-) -> (StructOrEnum, Vec<StructOrEnum>) {
+) -> (CssType, Vec<CssType>) {
     static CENTER: AtomicU8 = AtomicU8::new(0);
     const CENTER_NAMES: &[&str] = &["CenterLR", "CenterTB"];
     
     match combinator {
         GroupCombinators::Juxtaposition | GroupCombinators::AllAnyOrder | GroupCombinators::AtLeastOneAnyOrder => {
             let mut res = generate_group_struct(components, name, combinator == GroupCombinators::AtLeastOneAnyOrder);
-            if res.0.ident.to_string() == "Center" {
-                res.0.ident = ident(CENTER_NAMES[CENTER.fetch_add(1, Ordering::SeqCst) as usize]);
+            if res.0.id == "Center" {
+                res.0.id = ident_str(CENTER_NAMES[CENTER.fetch_add(1, Ordering::SeqCst) as usize]);
             }
-            (StructOrEnum::Struct(res.0), res.1)
+            
+            res
         }
 
         GroupCombinators::ExactlyOne => {
             let mut res = generate_group_enum(components, name);
-            if res.0.ident.to_string() == "Center" {
-                res.0.ident = ident(CENTER_NAMES[CENTER.fetch_add(1, Ordering::SeqCst) as usize]);
+            if res.0.id.to_string() == "Center" {
+                res.0.id = ident_str(CENTER_NAMES[CENTER.fetch_add(1, Ordering::SeqCst) as usize]);
             }
-            (StructOrEnum::Enum(res.0), res.1)
+            
+            res
         }
     }
 }
+
+
 
 pub fn generate_group_struct(
     components: &[SyntaxComponent],
     name: Name,
     is_aloao: bool, //is_at_least_one_any_order
-) -> (ItemStruct, Vec<StructOrEnum>) {
-    let mut ty = new_struct(name.name);
+) -> (CssType, Vec<CssType>) {
     let mut additional = Vec::new();
     let mut better_name = String::new();
+    
+    let mut items = Vec::with_capacity(components.len());
 
-    let fields = match &mut ty.fields {
-        syn::Fields::Unnamed(fields) => fields,
-        _ => panic!("Expected unnamed fields"),
-    };
     
     let mut group_name = 0;
 
@@ -101,29 +84,30 @@ pub fn generate_group_struct(
         match component {
             SyntaxComponent::GenericKeyword { keyword, .. } => {
                 if is_aloao {
-                    let keyword = ident(keyword);
-                    fields.unnamed.push(parse_quote!(Option<#keyword>));
+                    let id = ident_str(keyword);
+
+                    additional.push(CssType::unit(keyword.clone(), &id));
                     
-                    additional.push(StructOrEnum::Struct(parse_quote!(struct #keyword;)));
+                    items.push(kw(keyword.clone(), id));
                 }
                 
                 better_name.push_str(&keyword.to_case(Case::Pascal));
             }
             SyntaxComponent::Inherit { .. } => {
                 if is_aloao {
-                    fields.unnamed.push(parse_quote!(Option<Inherit>))
+                    items.push(kwd("Inherit"));
                 }
                 better_name.push_str("Inherit");
             }
             SyntaxComponent::Initial { .. } => {
                 if is_aloao {
-                    fields.unnamed.push(parse_quote!(Option<Initial>))
+                    items.push(kwd("Initial"));
                 }
                 better_name.push_str("Initial");
             }
             SyntaxComponent::Unset { .. } => {
                 if is_aloao {
-                    fields.unnamed.push(parse_quote!(Option<Unset>))
+                    items.push(kwd("Unset"));
                 }
                 better_name.push_str("Unset");
             }
@@ -136,12 +120,6 @@ pub fn generate_group_struct(
                 better_name.push_str(ty);
                 let ty = format!("{}{suffix}", ty.to_case(Case::Pascal));
 
-                let ty = Ident::new(&ty, Span::call_site());
-                
-                let ty = Type::Path(TypePath {
-                    qself: None,
-                    path: ty.into(),
-                });
                 
                 let mut multipliers = multipliers.clone();
                 
@@ -149,15 +127,11 @@ pub fn generate_group_struct(
                     multipliers.push(SyntaxComponentMultiplier::Optional);
                     
                 }
-
-                fields.unnamed.push(Field {
-                    attrs: Vec::new(),
-                    vis: syn::Visibility::Inherited,
-                    mutability: FieldMutability::None,
-                    ident: None,
-                    colon_token: None,
-                    ty: multiply(ty, &multipliers),
-                })
+                
+                items.push(CssItem::with_multiplier(
+                    CssRepr::Sub(ty),
+                    multipliers.as_slice().into(),
+                ));
             }
 
             SyntaxComponent::Function {
@@ -170,56 +144,42 @@ pub fn generate_group_struct(
                 let name = &format!("{}Fn", name);
                 
                 if let Some(arguments) = arguments {
-                    let Some(res) = generate_component_root(arguments, name) else {
+                    let Some(mut res) = generate_component_root_ty(arguments, name) else {
                         continue;
                     };
                     additional.extend(res.1);
-
-                    match res.0 {
-                        StructOrEnum::Struct(s) => match s.fields {
-                            Fields::Unit => {}
-                            Fields::Named(_) => {
+                    
+                    
+                    match res.0.repr {
+                        CssTypeRepr::Struct(mut s) => {
+                            match s.items.len() {
+                                0 => {}
+                                1 => {
+                                    let mut item = s.items.pop().expect("unreachable");
+                                    
+                                    item.add_multiplier(multipliers.as_slice().into());
+                                    
+                                    items.push(item);
+                                }
                                 
-                                
-                                
-                                // fields.named.extend(fn_fields.named);
+                                _ => {
+                                    items.push(CssItem::with_multiplier(
+                                        CssRepr::Tuple(s),
+                                        multipliers.as_slice().into(),
+                                    ));
+                                }
                             }
-                            Fields::Unnamed(fn_fields) => {
-                                let ty = if fn_fields.unnamed.len() == 1 {
-                                    fn_fields.unnamed.first().unwrap().ty.clone()
-                                } else {
-                                    Type::Tuple(syn::TypeTuple {
-                                        paren_token: Default::default(),
-                                        elems: fn_fields.unnamed.into_iter().map(|f| f.ty).collect(),
-                                    })
-                                };
-
-                                fields.unnamed.push(Field {
-                                    attrs: vec![],
-                                    vis: Visibility::Inherited,
-                                    mutability: FieldMutability::None,
-                                    ident: None,
-                                    colon_token: None,
-                                    ty: multiply(ty, multipliers),
-                                })
-                            },
-                        },
-                        StructOrEnum::Enum(mut e) => {
-                            e.ident = ident(&format!("{}{}", name, "Args"));
-
-                            fields.unnamed.push(Field {
-                                attrs: vec![],
-                                vis: Visibility::Inherited,
-                                mutability: FieldMutability::None,
-                                ident: None,
-                                colon_token: None,
-                                ty: multiply(Type::Path(TypePath {
-                                    qself: None,
-                                    path: Path::from(e.ident.clone()),
-                                }), multipliers),
-                            });
-
-                            additional.push(StructOrEnum::Enum(e));
+                            
+                        }
+                        CssTypeRepr::Enum(_) => {
+                            res.0.id = ident_str(&format!("{}{}", res.0.id, "Args"));
+                            
+                            items.push(CssItem::with_multiplier(
+                                CssRepr::Sub(res.0.id.clone()),
+                                multipliers.as_slice().into(),
+                            ));
+                            
+                            additional.push(res.0);
                         }
                     }
                 }
@@ -236,49 +196,33 @@ pub fn generate_group_struct(
                 let res = generate_group(components, *combinator, Name::new(&name_init));
                 additional.extend(res.1);
 
-                match res.0 {
-                    StructOrEnum::Struct(s) => match s.fields {
-                        Fields::Unit => {}
-                        Fields::Named(_) => {
-                            todo!()
-                        }
-                        Fields::Unnamed(fn_fields) => {
-                            if !fn_fields.unnamed.is_empty() {
-                                let ty = if fn_fields.unnamed.len() == 1 {
-                                    fn_fields.unnamed.first().unwrap().ty.clone()
-                                } else {
-                                    Type::Tuple(syn::TypeTuple {
-                                        paren_token: Default::default(),
-                                        elems: fn_fields.unnamed.into_iter().map(|f| f.ty).collect(),
-                                    })
-                                };
-                                
-                                
-                                fields.unnamed.push(Field {
-                                    attrs: vec![],
-                                    vis: Visibility::Inherited,
-                                    mutability: FieldMutability::None,
-                                    ident: None,
-                                    colon_token: None,
-                                    ty: multiply(ty, multipliers),
-                                })
-                            }
-                        },
-                    },
-                    StructOrEnum::Enum(e) => {
-                        fields.unnamed.push(Field {
-                            attrs: vec![],
-                            vis: Visibility::Inherited,
-                            mutability: FieldMutability::None,
-                            ident: None,
-                            colon_token: None,
-                            ty: multiply(Type::Path(TypePath {
-                                qself: None,
-                                path: Path::from(e.ident.clone()),
-                            }), multipliers),
-                        });
+                match res.0.repr {
+                    CssTypeRepr::Struct(mut s) => {
+                        match s.items.len() {
+                            0 => {}
+                            1 => {
+                                let mut item = s.items.pop().expect("unreachable");
 
-                        additional.push(StructOrEnum::Enum(e));
+                                item.add_multiplier(multipliers.as_slice().into());
+
+                                items.push(item);
+                            }
+
+                            _ => {
+                                items.push(CssItem::with_multiplier(
+                                    CssRepr::Tuple(s),
+                                    multipliers.as_slice().into(),
+                                ));
+                            }
+                        }
+                    }
+                    CssTypeRepr::Enum(_) => {
+                        items.push(CssItem::with_multiplier(
+                            CssRepr::Sub(res.0.id.clone()),
+                            multipliers.as_slice().into(),
+                        ));
+
+                        additional.push(res.0);
                     }
                 }
             }
@@ -288,17 +232,10 @@ pub fn generate_group_struct(
             SyntaxComponent::Builtin { datatype, multipliers } => {
                 better_name.push_str(&datatype.to_case(Case::Pascal));
                 
-                fields.unnamed.push(Field {
-                    attrs: vec![],
-                    vis: syn::Visibility::Inherited,
-                    mutability: FieldMutability::None,
-                    ident: None,
-                    colon_token: None,
-                    ty: multiply(Type::Path(TypePath {
-                        qself: None,
-                        path: Path::from(ident(datatype)),
-                    }), multipliers),
-                })
+                items.push(CssItem::with_multiplier(
+                    CssRepr::Sub(datatype.to_case(Case::Pascal)),
+                    multipliers.as_slice().into(),
+                ));
             }
 
         _ => {
@@ -306,10 +243,16 @@ pub fn generate_group_struct(
             }
         }
     }
+    
 
-    if name.find_better_name && NAME_RANGE.contains(&better_name.len()) {
-        ty.ident = ident(&better_name);
-    }
+    let name = if name.find_better_name && NAME_RANGE.contains(&better_name.len()) {
+        ident_str(&better_name)
+    } else {
+        name.name.to_owned()
+    };
+    
+    
+    let ty = CssType::new(name.clone(), name, CssTree::with_items(items).into());
 
     (ty, additional)
 }
@@ -317,8 +260,7 @@ pub fn generate_group_struct(
 pub fn generate_group_enum(
     components: &[SyntaxComponent],
     name: Name,
-) -> (ItemEnum, Vec<StructOrEnum>) {
-    let mut ty = new_enum(name.name);
+) -> (CssType, Vec<CssType>) {
     let mut additional = Vec::new();
     let mut better_name = String::new();
 
@@ -335,12 +277,9 @@ pub fn generate_group_enum(
                     base: id.to_string(),
                     kind: "GenericKeyword".to_string(),
                     args: None,
-                    variant: syn::Variant {
-                        attrs: vec![],
-                        ident: id,
-                        fields: syn::Fields::Unit,
-                        discriminant: None,
-                    },
+                    variant_name: keyword.clone(),
+                    variant_id: ident_str(keyword),
+                    ty: CssTree::new(),
                 });
             }
             SyntaxComponent::Inherit { .. } => {
@@ -349,12 +288,9 @@ pub fn generate_group_enum(
                     base: "Inherit".to_string(),
                     kind: "Inherit".to_string(),
                     args: None,
-                    variant: syn::Variant {
-                        attrs: vec![],
-                        ident: Ident::new("Inherit", Span::call_site()),
-                        fields: syn::Fields::Unit,
-                        discriminant: None,
-                    },
+                    variant_name: "Inherit".to_string(),
+                    variant_id: "Inherit".to_string(),
+                    ty: CssTree::new()
                 });
             }
             SyntaxComponent::Initial { .. } => {
@@ -363,12 +299,9 @@ pub fn generate_group_enum(
                     base: "Initial".to_string(),
                     kind: "Initial".to_string(),
                     args: None,
-                    variant: syn::Variant {
-                        attrs: vec![],
-                        ident: Ident::new("Initial", Span::call_site()),
-                        fields: syn::Fields::Unit,
-                        discriminant: None,
-                    },
+                    variant_name: "Initial".to_string(),
+                    variant_id: "Initial".to_string(),
+                    ty: CssTree::new()
                 });
             }
             SyntaxComponent::Definition { datatype, quoted, multipliers, .. } => {
@@ -377,32 +310,20 @@ pub fn generate_group_enum(
                 better_name.push_str(&id);
                 
                 let id_def = &format!("{}{suffix}", id);
-                let id = Ident::new(&id, Span::call_site());
-                let id_def = Ident::new(id_def, Span::call_site());
+                
+                let ty = CssItem::with_multiplier(
+                    CssRepr::Sub(id_def.to_string()),
+                    multipliers.as_slice().into(),
+                ).into();
+                
                 
                 candidates.push(VariantInfo {
-                    base: id.to_string(),
+                    base: id.clone(),
                     kind: suffix.to_string(),
                     args: None,
-                    variant: syn::Variant {
-                        attrs: vec![],
-                        ident: id.clone(),
-                        fields: syn::Fields::Unnamed(syn::FieldsUnnamed {
-                            paren_token: Default::default(),
-                            unnamed: Punctuated::from_iter(vec![syn::Field {
-                                attrs: vec![],
-                                vis: syn::Visibility::Inherited,
-                                mutability: FieldMutability::None,
-                                ident: None,
-                                colon_token: None,
-                                ty: multiply(Type::Path(TypePath {
-                                    qself: None,
-                                    path: Path::from(id_def),
-                                }), multipliers),
-                            }]),
-                        }),
-                        discriminant: None,
-                    },
+                    variant_name: datatype.clone(),
+                    variant_id: id,
+                    ty,
                 });
             }
             SyntaxComponent::Function { name: fn_name, multipliers, arguments } => {
@@ -482,6 +403,7 @@ pub fn generate_group_enum(
             SyntaxComponent::Literal { literal, .. } => {
                 let lit = get_literal(literal);
                 better_name.push_str(&lit);
+                
                 candidates.push(VariantInfo {
                     base: lit.clone(),
                     kind: "Literal".to_string(),
@@ -727,44 +649,13 @@ fn fix_fields(fields: Fields, multipliers: &[SyntaxComponentMultiplier]) -> Fiel
     }
 }
 
-pub fn get_literal(literal: &str) -> String {
-    let literal = match literal {
-        "+" => "Plus",
-        "-" => "Minus",
-        "*" => "Asterisk",
-        "/" => "Slash",
-        "%" => "Percent",
-        "^" => "Caret",
-        "!" => "Exclamation",
-        "=" => "Equal",
-        "<" => "LessThan",
-        ">" => "GreaterThan",
-        "$" => "Dollar",
-        "#" => "Hash",
-        "~" => "Tilde",
-        "|" => "Pipe",
-        _ => literal,
-    };
-    
-    
-    
-    let mut lit = literal.to_case(Case::Pascal);
-
-    if lit.starts_with(char::is_numeric) {
-        lit = format!("_{}", lit);
+pub fn kw(name: String, id: String) -> CssItem {
+    CssItem {
+        combinator: Multiplier::Optional,
+        repr: CssRepr::Keyword(name, id),
     }
-
-    if lit.to_lowercase() == "self" {
-        lit.remove(1);
-    }
-
-    lit
 }
 
-fn type_to_string(ty: &Type) -> String {
-    match ty {
-        Type::Path(tp) => tp.path.segments.last().map(|s| s.ident.to_string()).unwrap_or_default(),
-        Type::Tuple(tup) => tup.elems.iter().map(type_to_string).collect::<Vec<_>>().join(""),
-        _ => format!("{:?}", ty),
-    }
+pub fn kwd(str: &str) -> CssItem {
+    kw(str.to_owned(), ident_str(str))
 }

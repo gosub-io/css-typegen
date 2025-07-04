@@ -69,13 +69,20 @@ pub fn transform_id(name: &str) -> String {
 }
 
 pub fn ident(name: &str) -> syn::Ident {
+    let name = ident_str(name);
+
+    syn::Ident::new(&name, Span::call_site())
+}
+
+
+pub fn ident_str(name: &str) -> String {
     let mut name = transform_id(name).to_case(Case::Pascal);
 
     if name.starts_with(char::is_numeric) {
         name = format!("_{}", name);
     }
-
-    syn::Ident::new(&name, Span::call_site())
+    
+    name
 }
 
 pub fn ident_snake(name: &str) -> syn::Ident {

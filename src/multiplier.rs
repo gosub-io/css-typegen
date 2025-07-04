@@ -62,7 +62,7 @@ impl<const L: usize, const U: usize, T> CommaSeparatedRepeat<L, U, T> {
     }
 }
 
-fn merge_multipliers(multipliers: &[SyntaxComponentMultiplier]) -> SyntaxComponentMultiplier {
+pub fn merge_multipliers(multipliers: &[SyntaxComponentMultiplier]) -> SyntaxComponentMultiplier {
 
     match multipliers.len() {
         0 => return SyntaxComponentMultiplier::Once,
