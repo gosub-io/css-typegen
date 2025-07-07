@@ -161,6 +161,12 @@ impl CssRepr {
                     return None
                 }
             }
+            Self::Tuple(tree) => {
+                Type::Tuple(syn::TypeTuple {
+                    paren_token: Default::default(),
+                    elems: Punctuated::from_iter(tree.items.iter().filter_map(|f| f.to_type(is_aloao))),
+                })
+            }
         })
     }
 }

@@ -1,4 +1,4 @@
-use gosub_css3::matcher::syntax::{GroupCombinators, SyntaxComponentMultiplier};
+use gosub_css3::matcher::syntax::{SyntaxComponentMultiplier};
 use crate::ident_str;
 use crate::multiplier::merge_multipliers;
 
@@ -28,19 +28,31 @@ impl CssItem {
             repr,
         }
     }
-    
+
     pub fn with_multiplier(repr: CssRepr, combinator: Multiplier) -> Self {
         Self {
             combinator,
             repr,
         }
     }
-    
+
     pub fn add_multiplier(&mut self, combinator: Multiplier) {
         //TODO: handle case where combinator is already set
         self.combinator = combinator;
     }
-    
+
+    pub fn name(&self) -> String {
+        match &self.repr {
+            CssRepr::Function(name, _) => name.clone(),
+            CssRepr::Sub(name) => name.clone(),
+            CssRepr::Definition(name) => name.clone(),
+            CssRepr::Lit(name) => name.clone(),
+            CssRepr::Group(_, _) => "Group".to_string(),
+            CssRepr::Keyword(_, name) => name.clone(),
+            CssRepr::Tuple(_) => "Group".to_string(),
+        }
+    }
+
 }
 
 impl From<CssRepr> for CssItem {
@@ -103,19 +115,19 @@ pub struct CssType {
 }
 
 impl CssType {
-    
+
     pub fn unit(name: String, id: &str) -> Self {
         let id = ident_str(&id);
-        
-        
+
+
         Self {
             name,
             id,
             repr: CssTypeRepr::Struct(CssTree { items: Vec::new() }),
         }
-        
+
     }
-    
+
     pub fn new(name: String, id: String, repr: CssTypeRepr) -> Self {
         Self { name, id, repr }
     }
@@ -130,17 +142,31 @@ impl CssTree {
     pub fn new() -> Self {
         Self { items: Vec::new() }
     }
-    
+
     pub fn with_items(items: Vec<CssItem>) -> Self {
         Self { items }
     }
-    
+
     pub fn add_item(&mut self, item: CssItem) {
         self.items.push(item);
     }
-    
+
     pub fn is_empty(&self) -> bool {
         self.items.is_empty()
+    }
+
+    pub fn add_multiplier(self, multiplier: Multiplier) -> Self {
+        if multiplier == Multiplier::None {
+            return self;
+        }
+
+        let repr = CssRepr::Tuple(self);
+
+        let item = CssItem::with_multiplier(repr, multiplier);
+
+        CssTree {
+            items: vec![item],
+        }
     }
 }
 

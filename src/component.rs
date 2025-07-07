@@ -1,5 +1,5 @@
 pub mod group;
-// mod group_ty;
+mod group_ty;
 
 use convert_case::{Case, Casing};
 use crate::component::group::StructOrEnum;
@@ -150,8 +150,7 @@ pub fn generate_component_root_ty(
             combinator,
             multipliers: _,
         } => {
-            // group_ty::generate_group(components, combinator.clone(), name.into())
-            todo!()
+            group_ty::generate_group(components, combinator.clone(), name.into())
         },
 
         SyntaxComponent::GenericKeyword { .. } => {

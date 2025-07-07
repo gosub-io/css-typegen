@@ -1,21 +1,16 @@
-use crate::component::{generate_component_root, generate_component_root_ty};
+use crate::component::{generate_component_root_ty};
 use crate::value::value_to_ident;
-use crate::{ident, ident_str, new_enum, new_struct, Name};
+use crate::{ident, ident_str, Name};
 use convert_case::{Case, Casing};
 use gosub_css3::matcher::syntax::{GroupCombinators, SyntaxComponent, SyntaxComponentMultiplier};
-use proc_macro2::{Ident, Span};
 use std::collections::{HashMap, HashSet};
-use std::fmt::Display;
 use std::slice;
 use std::sync::atomic::{AtomicU8, Ordering};
-use syn::__private::ToTokens;
-use syn::punctuated::Punctuated;
 use syn::{
-    Field, FieldMutability, Fields, FieldsUnnamed, ItemEnum, ItemStruct, Path, Type, TypePath,
-    Visibility, parse_quote,
+    Field, FieldMutability, Fields, Type,
 };
-use crate::component::group::{get_literal, StructOrEnum};
-use crate::multiplier::{multiply, multiply_fields};
+use crate::component::group::get_literal;
+use crate::multiplier::multiply_fields;
 use crate::repr::{CssItem, CssRepr, CssTree, CssType, CssTypeRepr, Multiplier};
 
 const NAME_RANGE: std::ops::Range<usize> = 5..50;
@@ -50,7 +45,7 @@ pub fn generate_group(
             if res.0.id == "Center" {
                 res.0.id = ident_str(CENTER_NAMES[CENTER.fetch_add(1, Ordering::SeqCst) as usize]);
             }
-            
+
             res
         }
 
@@ -59,7 +54,7 @@ pub fn generate_group(
             if res.0.id.to_string() == "Center" {
                 res.0.id = ident_str(CENTER_NAMES[CENTER.fetch_add(1, Ordering::SeqCst) as usize]);
             }
-            
+
             res
         }
     }
@@ -74,10 +69,10 @@ pub fn generate_group_struct(
 ) -> (CssType, Vec<CssType>) {
     let mut additional = Vec::new();
     let mut better_name = String::new();
-    
+
     let mut items = Vec::with_capacity(components.len());
 
-    
+
     let mut group_name = 0;
 
     for component in components {
@@ -87,7 +82,7 @@ pub fn generate_group_struct(
                     let id = ident_str(keyword);
 
                     additional.push(CssType::unit(keyword.clone(), &id));
-                    
+
                     items.push(kw(keyword.clone(), id));
                 }
                 
@@ -120,14 +115,14 @@ pub fn generate_group_struct(
                 better_name.push_str(ty);
                 let ty = format!("{}{suffix}", ty.to_case(Case::Pascal));
 
-                
+
                 let mut multipliers = multipliers.clone();
                 
                 if is_aloao && !multipliers.contains(&SyntaxComponentMultiplier::Optional) {
                     multipliers.push(SyntaxComponentMultiplier::Optional);
                     
                 }
-                
+
                 items.push(CssItem::with_multiplier(
                     CssRepr::Sub(ty),
                     multipliers.as_slice().into(),
@@ -148,20 +143,20 @@ pub fn generate_group_struct(
                         continue;
                     };
                     additional.extend(res.1);
-                    
-                    
+
+
                     match res.0.repr {
                         CssTypeRepr::Struct(mut s) => {
                             match s.items.len() {
                                 0 => {}
                                 1 => {
                                     let mut item = s.items.pop().expect("unreachable");
-                                    
+
                                     item.add_multiplier(multipliers.as_slice().into());
-                                    
+
                                     items.push(item);
                                 }
-                                
+
                                 _ => {
                                     items.push(CssItem::with_multiplier(
                                         CssRepr::Tuple(s),
@@ -169,16 +164,16 @@ pub fn generate_group_struct(
                                     ));
                                 }
                             }
-                            
+
                         }
                         CssTypeRepr::Enum(_) => {
                             res.0.id = ident_str(&format!("{}{}", res.0.id, "Args"));
-                            
+
                             items.push(CssItem::with_multiplier(
                                 CssRepr::Sub(res.0.id.clone()),
                                 multipliers.as_slice().into(),
                             ));
-                            
+
                             additional.push(res.0);
                         }
                     }
@@ -231,7 +226,7 @@ pub fn generate_group_struct(
 
             SyntaxComponent::Builtin { datatype, multipliers } => {
                 better_name.push_str(&datatype.to_case(Case::Pascal));
-                
+
                 items.push(CssItem::with_multiplier(
                     CssRepr::Sub(datatype.to_case(Case::Pascal)),
                     multipliers.as_slice().into(),
@@ -243,15 +238,15 @@ pub fn generate_group_struct(
             }
         }
     }
-    
+
 
     let name = if name.find_better_name && NAME_RANGE.contains(&better_name.len()) {
         ident_str(&better_name)
     } else {
         name.name.to_owned()
     };
-    
-    
+
+
     let ty = CssType::new(name.clone(), name, CssTree::with_items(items).into());
 
     (ty, additional)
@@ -310,13 +305,13 @@ pub fn generate_group_enum(
                 better_name.push_str(&id);
                 
                 let id_def = &format!("{}{suffix}", id);
-                
+
                 let ty = CssItem::with_multiplier(
                     CssRepr::Sub(id_def.to_string()),
                     multipliers.as_slice().into(),
                 ).into();
-                
-                
+
+
                 candidates.push(VariantInfo {
                     base: id.clone(),
                     kind: suffix.to_string(),
@@ -331,7 +326,7 @@ pub fn generate_group_enum(
                 better_name.push_str(&name);
                 let name_fn = &format!("{}Fn", name);
 
-                let (fields, args_info) = if let Some(arguments) = arguments {
+                let (ty, args_info) = if let Some(arguments) = arguments {
                     let res = generate_group_struct(
                         slice::from_ref(arguments),
                         name_fn.as_str().into(),
@@ -339,81 +334,76 @@ pub fn generate_group_enum(
                     );
                     additional.extend(res.1);
 
-                    let mut arg_names = Vec::new();
-                    match &res.0.fields {
-                        Fields::Unnamed(fn_fields) => {
-                            for f in &fn_fields.unnamed {
-                                arg_names.push(format!("{}", type_to_string(&f.ty)));
-                            }
-                        }
-                        _ => {}
+
+                    let CssTypeRepr::Struct(tree) = res.0.repr else {
+                        panic!("Expected a struct representation for function arguments");
+                    };
+
+                    let mut arg_names = Vec::with_capacity(tree.items.len());
+
+                    for item in &tree.items {
+                        arg_names.push(item.name());
                     }
-                    (fix_fields(res.0.fields, multipliers), Some(arg_names))
+
+                    (tree, Some(arg_names))
                 } else {
-                    (syn::Fields::Unit, None)
+                    (CssTree::new(), None)
                 };
+
+                let ty = ty.add_multiplier(multipliers.as_slice().into());
 
                 candidates.push(VariantInfo {
                     base: name.clone(),
                     kind: "Fn".to_string(),
                     args: args_info,
-                    variant: syn::Variant {
-                        attrs: vec![],
-                        ident: Ident::new(&name, Span::call_site()),
-                        fields,
-                        discriminant: None,
-                    },
+                    ty,
+                    variant_name: fn_name.clone(),
+                    variant_id: name,
                 });
             }
             SyntaxComponent::Group { components, combinator, multipliers } => {
                 let res = generate_group(components, *combinator, Name::new(&format!("{}Group{}", name.name, group_name)));
                 group_name += 1;
                 additional.extend(res.1);
-                match res.0 {
-                    StructOrEnum::Enum(e) => {
-                        for v in e.variants {
-                            candidates.push(VariantInfo {
-                                base: v.ident.to_string(),
-                                kind: "GroupEnum".to_string(),
-                                args: None,
-                                variant: {
-                                    let mut v = v;
-                                    v.fields = fix_fields(v.fields, multipliers);
-                                    v
-                                },
-                            });
-                        }
-                    }
-                    StructOrEnum::Struct(s) => {
-                        let fields = fix_fields(s.fields, multipliers);
+
+
+
+                match res.0.repr {
+                    CssTypeRepr::Struct(s) => {
                         candidates.push(VariantInfo {
-                            base: s.ident.to_string(),
+                            base: res.0.id.to_string(),
                             kind: "GroupStruct".to_string(),
                             args: None,
-                            variant: syn::Variant {
-                                attrs: vec![],
-                                ident: s.ident.clone(),
-                                fields,
-                                discriminant: None,
-                            },
+                            ty: s.add_multiplier(multipliers.as_slice().into()),
+                            variant_name: res.0.name,
+                            variant_id: res.0.id,
                         });
+                    }
+                    CssTypeRepr::Enum(e) => {
+                        for (id, ty) in e {
+                            candidates.push(VariantInfo {
+                                base: id.clone(),
+                                kind: "GroupEnum".to_string(),
+                                args: None,
+                                ty,
+                                variant_name: id.clone(),
+                                variant_id: id,
+                            });
+                        }
                     }
                 }
             }
             SyntaxComponent::Literal { literal, .. } => {
                 let lit = get_literal(literal);
                 better_name.push_str(&lit);
-                
+
                 candidates.push(VariantInfo {
                     base: lit.clone(),
                     kind: "Literal".to_string(),
                     args: None,
-                    variant: syn::Variant {
-                        attrs: vec![],
-                        ident: Ident::new(&lit, Span::call_site()),
-                        fields: syn::Fields::Unit,
-                        discriminant: None,
-                    },
+                    ty: CssTree::new(),
+                    variant_name: literal.clone(),
+                    variant_id: lit,
                 });
             }
             SyntaxComponent::Unset { .. } => {
@@ -421,12 +411,9 @@ pub fn generate_group_enum(
                     base: "Unset".to_string(),
                     kind: "Unset".to_string(),
                     args: None,
-                    variant: syn::Variant {
-                        attrs: vec![],
-                        ident: Ident::new("Unset", Span::call_site()),
-                        fields: syn::Fields::Unit,
-                        discriminant: None,
-                    },
+                    ty: CssTree::new(),
+                    variant_name: "Unset".to_string(),
+                    variant_id: "Unset".to_string(),
                 });
             }
             SyntaxComponent::Value { value, .. } => {
@@ -436,39 +423,27 @@ pub fn generate_group_enum(
                     base: name.to_string(),
                     kind: "Value".to_string(),
                     args: None,
-                    variant: syn::Variant {
-                        attrs: vec![],
-                        ident: Ident::new(&name, Span::call_site()),
-                        fields: syn::Fields::Unit,
-                        discriminant: None,
-                    },
+                    ty: CssTree::new(),
+                    variant_name: name.clone(),
+                    variant_id: name.clone(),
                 });
             }
             SyntaxComponent::Builtin { datatype, multipliers } => {
                 better_name.push_str(&datatype.to_case(Case::Pascal));
+
+                let ty = CssItem::with_multiplier(
+                    CssRepr::Sub(datatype.to_case(Case::Pascal)),
+                    multipliers.as_slice().into(),
+                ).into();
+
+
                 candidates.push(VariantInfo {
                     base: datatype.to_case(Case::Pascal),
                     kind: "Builtin".to_string(),
                     args: None,
-                    variant: syn::Variant {
-                        attrs: vec![],
-                        ident: ident(datatype),
-                        fields: Fields::Unnamed(FieldsUnnamed {
-                            paren_token: Default::default(),
-                            unnamed: Punctuated::from_iter(vec![Field {
-                                attrs: vec![],
-                                vis: syn::Visibility::Inherited,
-                                mutability: FieldMutability::None,
-                                ident: None,
-                                colon_token: None,
-                                ty: multiply(Type::Path(TypePath {
-                                    qself: None,
-                                    path: Path::from(ident(datatype)),
-                                }), multipliers),
-                            }]),
-                        }),
-                        discriminant: None,
-                    },
+                    ty,
+                    variant_name: datatype.clone(),
+                    variant_id: ident_str(datatype),
                 });
             }
             SyntaxComponent::Property { .. } => {
@@ -489,15 +464,15 @@ pub fn generate_group_enum(
     for (_, idxs) in &name_map {
         if idxs.len() == 1 {
             let c = &mut candidates[idxs[0]];
-            let mut ident_str = c.base.clone();
+            let mut ident_string = c.base.clone();
             let mut n = 1;
             
-            while used_names.contains(&ident_str) {
-                ident_str = format!("{}{}", c.base, n);
+            while used_names.contains(&ident_string) {
+                ident_string = format!("{}{}", c.base, n);
                 n += 1;
             }
-            c.variant.ident = ident(&ident_str);
-            used_names.insert(ident_str);
+            c.variant_id = ident_str(&ident_string);
+            used_names.insert(ident_string);
         } else {
             let all_fn = idxs.iter().all(|&i| candidates[i].kind == "Fn");
             if all_fn {
@@ -520,7 +495,7 @@ pub fn generate_group_enum(
                 }
                 for (_, &i) in idxs.iter().enumerate() {
                     let c = &mut candidates[i];
-                    let mut ident_str = format!("{}Fn", c.base);
+                    let mut ident_string = format!("{}Fn", c.base);
 
                     if let Some(args) = &c.args {
                         let mut parts = Vec::new();
@@ -532,64 +507,71 @@ pub fn generate_group_enum(
                         }
                         
                         if !parts.is_empty() {
-                            ident_str = format!("{}Fn{}", c.base, parts.join(""));
+                            ident_string = format!("{}Fn{}", c.base, parts.join(""));
                         }
                     }
                     
                     let mut n = 1;
-                    let mut try_ident = ident_str.clone();
+                    let mut try_ident = ident_string.clone();
                     
                     while used_names.contains(&try_ident) {
-                        try_ident = format!("{}{}", ident_str, n); //TODO: this is bad, there always is something different out out and we need to find it, for now this fixes some errors
+                        try_ident = format!("{}{}", ident_string, n); //TODO: this is bad, there always is something different out out and we need to find it, for now this fixes some errors
                         n += 1;
                     }
                     
-                    c.variant.ident = ident(&try_ident);
+                    c.variant_id = ident_str(&try_ident);
                     used_names.insert(try_ident);
                 }
             } else {
                 for &i in idxs {
                     let c = &mut candidates[i];
-                    let ident_str = format!("{}{}", c.base, c.kind);
+                    let ident_string = format!("{}{}", c.base, c.kind);
                     let mut n = 1;
-                    let mut try_ident = ident_str.clone();
+                    let mut try_ident = ident_string.clone();
                     
                     while used_names.contains(&try_ident) {
-                        try_ident = format!("{}{}", ident_str, n);
+                        try_ident = format!("{}{}", ident_string, n);
                         n += 1;
                     }
                     
-                    c.variant.ident = ident(&try_ident);
+                    c.variant_id = ident_str(&try_ident);
                     used_names.insert(try_ident);
                 }
             }
         }
     }
 
+    let mut variants = Vec::with_capacity(candidates.len());
+
     for c in candidates {
-        ty.variants.push(c.variant);
+        variants.push((c.variant_id, c.ty));
     }
 
-    if name.find_better_name && NAME_RANGE.contains(&better_name.len()) {
-        ty.ident = ident(&better_name);
-    }
 
-    for b in BOXES {
-        if ty.ident.to_string() == b[0] {
-            for variant in &mut ty.variants {
-                if variant.ident.to_string() == b[1] {
-                    if let syn::Fields::Unnamed(ref mut fields) = variant.fields {
-                        if let Some(field) = fields.unnamed.first_mut() {
-                            let orig_ty = field.ty.clone();
-                            field.ty = parse_quote!(Box<#orig_ty>);
-                        }
-                    }
-                }
-            }
-        }
-    }
+    let id = if name.find_better_name && NAME_RANGE.contains(&better_name.len()) {
+        ident_str(&better_name)
+    } else {
+        name.name.to_owned()
+    };
 
-    (ty, additional)
+    // for b in BOXES {
+    //     if ty.ident.to_string() == b[0] {
+    //         for variant in &mut ty.variants {
+    //             if variant.ident.to_string() == b[1] {
+    //                 if let syn::Fields::Unnamed(ref mut fields) = variant.fields {
+    //                     if let Some(field) = fields.unnamed.first_mut() {
+    //                         let orig_ty = field.ty.clone();
+    //                         field.ty = parse_quote!(Box<#orig_ty>);
+    //                     }
+    //                 }
+    //             }
+    //         }
+    //     }
+    // }
+
+    let repr = CssTypeRepr::Enum(variants);
+
+    (CssType::new(name.name.to_owned(), id, repr), additional)
 }
 
 fn fix_fields(fields: Fields, multipliers: &[SyntaxComponentMultiplier]) -> Fields {
