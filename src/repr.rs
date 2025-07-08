@@ -17,28 +17,28 @@ pub enum CssRepr {
 
 #[derive(Debug, Clone)]
 pub struct CssItem {
-    pub combinator: Multiplier,
+    pub multiplier: Multiplier,
     pub repr: CssRepr,
 }
 
 impl CssItem {
     pub fn new(repr: CssRepr) -> Self {
         Self {
-            combinator: Multiplier::None,
+            multiplier: Multiplier::None,
             repr,
         }
     }
 
     pub fn with_multiplier(repr: CssRepr, combinator: Multiplier) -> Self {
         Self {
-            combinator,
+            multiplier: combinator,
             repr,
         }
     }
 
     pub fn add_multiplier(&mut self, combinator: Multiplier) {
         //TODO: handle case where combinator is already set
-        self.combinator = combinator;
+        self.multiplier = combinator;
     }
 
     pub fn name(&self) -> String {

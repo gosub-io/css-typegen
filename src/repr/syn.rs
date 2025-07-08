@@ -115,7 +115,7 @@ impl CssItem {
             _ => {}
         }
 
-        Some(match self.combinator {
+        Some(match self.multiplier {
             Multiplier::None => ty,
             Multiplier::Optional => apply_multiplier_internal("Option", ty, None, false),
             Multiplier::ZeroOrMore => apply_multiplier_internal("ZeroOrMore", ty, None, false),

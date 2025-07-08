@@ -635,7 +635,7 @@ fn fix_fields(fields: Fields, multipliers: &[SyntaxComponentMultiplier]) -> Fiel
 
 pub fn kw(name: String, id: String) -> CssItem {
     CssItem {
-        combinator: Multiplier::Optional,
+        multiplier: Multiplier::Optional,
         repr: CssRepr::Keyword(name, id),
     }
 }
