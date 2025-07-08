@@ -246,8 +246,9 @@ pub fn generate_group_struct(
         name.name.to_owned()
     };
 
+    let id = ident_str(&name);
 
-    let ty = CssType::new(name.clone(), name, CssTree::with_items(items).into())
+    let ty = CssType::new(name.clone(), id, CssTree::with_items(items).into())
         .with_aloao(is_aloao);
 
 
@@ -572,6 +573,8 @@ pub fn generate_group_enum(
     // }
 
     let repr = CssTypeRepr::Enum(variants);
+
+    let id = ident_str(&id);
 
     (CssType::new(name.name.to_owned(), id, repr), additional)
 }
