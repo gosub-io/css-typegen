@@ -727,7 +727,7 @@ fn fix_fields(fields: Fields, multipliers: &[SyntaxComponentMultiplier]) -> Fiel
     }
 }
 
-pub fn get_literal(literal: &str) -> String {
+pub(crate) fn get_literal(literal: &str) -> String {
     let literal = match literal {
         "+" => "Plus",
         "-" => "Minus",

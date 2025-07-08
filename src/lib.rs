@@ -1,3 +1,4 @@
+#![allow(unused)]
 pub mod component;
 pub mod multiplier;
 mod value;
@@ -5,6 +6,9 @@ pub mod builtins;
 pub mod renamer;
 pub mod exporter;
 mod repr;
+
+#[cfg(test)]
+mod tests;
 
 use convert_case::{Case, Casing};
 use proc_macro2::Span;
@@ -81,7 +85,7 @@ pub fn ident_str(name: &str) -> String {
     if name.starts_with(char::is_numeric) {
         name = format!("_{}", name);
     }
-    
+
     name
 }
 
