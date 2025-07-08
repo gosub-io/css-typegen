@@ -112,6 +112,7 @@ pub struct CssType {
     pub name: String,
     pub id: String,
     pub repr: CssTypeRepr,
+    pub is_aloao: bool,
 }
 
 impl CssType {
@@ -124,12 +125,18 @@ impl CssType {
             name,
             id,
             repr: CssTypeRepr::Struct(CssTree { items: Vec::new() }),
+            is_aloao: false,
         }
 
     }
 
     pub fn new(name: String, id: String, repr: CssTypeRepr) -> Self {
-        Self { name, id, repr }
+        Self { name, id, repr, is_aloao: false }
+    }
+    
+    pub fn with_aloao(mut self, is_aloao: bool) -> Self {
+        self.is_aloao = is_aloao;
+        self
     }
 }
 

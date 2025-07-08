@@ -13,7 +13,7 @@ impl CssType {
                 let mut enum_variants = Punctuated::new();
 
                 for (name, tree) in variants {
-                    let fields = tree.to_fields(false);
+                    let fields = tree.to_fields(self.is_aloao);
                     enum_variants.push(syn::Variant {
                         attrs: Vec::new(),
                         ident: Ident::new(name, proc_macro2::Span::call_site()),
@@ -33,7 +33,7 @@ impl CssType {
                 })
             }
             CssTypeRepr::Struct(fields) => {
-                let fields = fields.to_fields(false);
+                let fields = fields.to_fields(self.is_aloao);
                 StructOrEnum::Struct(syn::ItemStruct {
                     attrs: Vec::new(),
                     vis: syn::Visibility::Inherited,
