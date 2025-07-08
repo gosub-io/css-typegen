@@ -388,7 +388,7 @@ pub fn generate_group_enum(
                                 base: id.clone(),
                                 kind: "GroupEnum".to_string(),
                                 args: None,
-                                ty,
+                                ty: ty.add_multiplier(multipliers.as_slice().into()),
                                 variant_name: id.clone(),
                                 variant_id: id,
                             });

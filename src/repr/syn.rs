@@ -102,7 +102,7 @@ impl CssTree {
 impl CssItem {
     pub fn to_type(&self, is_aloao: bool) -> Option<Type> {
         let mut ty = self.repr.to_type(is_aloao)?;
-
+        
         match ty {
             Type::Paren(paren) => {
                 ty = *paren.elem;
