@@ -248,7 +248,7 @@ pub fn generate_group_struct(
 
     let id = ident_str(&name);
 
-    let ty = CssType::new(name.clone(), id, CssTree::with_items(items).into())
+    let ty = CssType::new(name.clone(), id, CssTree::with_items(items).set_aloao(is_aloao).into())
         .with_aloao(is_aloao);
 
 

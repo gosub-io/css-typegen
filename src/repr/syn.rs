@@ -58,6 +58,8 @@ impl CssTree {
 
         for item in &self.items {
             if let Some(item) = item.to_type(is_aloao) {
+            if let Some(item) = item.to_type(is_aloao || self.is_aloao) {
+                
                 elems.push(Field {
                     attrs: Vec::new(),
                     vis: syn::Visibility::Inherited,
