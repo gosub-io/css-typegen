@@ -105,7 +105,7 @@ impl Multiplier {
             Multiplier::None => Multiplier::Optional,
             Multiplier::Optional => Multiplier::Optional,
             Multiplier::ZeroOrMore => Multiplier::ZeroOrMore,
-            Multiplier::OneOrMore => Multiplier::OneOrMore,
+            Multiplier::OneOrMore => Multiplier::ZeroOrMore,
             Multiplier::Between(l, u) => Multiplier::Between(l.saturating_sub(1), u),
             Multiplier::CommaSeparatedRepeat(l, u) => Multiplier::CommaSeparatedRepeat(l.saturating_sub(1), u),
         }
@@ -187,7 +187,7 @@ impl CssType {
         Self {
             name,
             id,
-            repr: CssTypeRepr::Struct(CssTree { items: Vec::new() }),
+            repr: CssTypeRepr::Struct(CssTree { items: Vec::new(), is_aloao: false }),
             is_aloao: false,
         }
 
@@ -205,16 +205,17 @@ impl CssType {
 
 #[derive(Debug, Clone, Default)]
 pub struct CssTree {
+    is_aloao: bool,
     pub(crate) items: Vec<CssItem>,
 }
 
 impl CssTree {
     pub fn new() -> Self {
-        Self { items: Vec::new() }
+        Self { items: Vec::new(), is_aloao: false }
     }
 
     pub fn with_items(items: Vec<CssItem>) -> Self {
-        Self { items }
+        Self { items, is_aloao: false }
     }
 
     pub fn add_item(&mut self, item: CssItem) {
@@ -229,6 +230,8 @@ impl CssTree {
         if multiplier == Multiplier::None {
             return self;
         }
+        
+        let is_aloao = self.is_aloao;
 
         let repr = CssRepr::Tuple(self);
 
@@ -236,7 +239,13 @@ impl CssTree {
 
         CssTree {
             items: vec![item],
+            is_aloao,
         }
+    }
+    
+    pub fn set_aloao(mut self, is_aloao: bool) -> Self {
+        self.is_aloao = is_aloao;
+        self
     }
 }
 
@@ -244,6 +253,7 @@ impl From<CssItem> for CssTree {
     fn from(item: CssItem) -> Self {
         Self {
             items: vec![item],
+            is_aloao: false,
         }
     }
 }
