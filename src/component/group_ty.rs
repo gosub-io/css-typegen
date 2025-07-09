@@ -222,7 +222,14 @@ pub fn generate_group_struct(
                 }
             }
 
-            SyntaxComponent::Literal { .. } => {}
+            SyntaxComponent::Literal { literal, multipliers } => {
+                let lit = get_literal(literal);
+
+                items.push(CssItem::with_multiplier(
+                    CssRepr::Lit(lit),
+                    multipliers.as_slice().into(),
+                ));
+            }
 
             SyntaxComponent::Builtin { datatype, multipliers } => {
                 better_name.push_str(&datatype.to_case(Case::Pascal));
