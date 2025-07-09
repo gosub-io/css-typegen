@@ -36,9 +36,8 @@ impl CssItem {
         }
     }
 
-    pub fn add_multiplier(&mut self, combinator: Multiplier) {
-        //TODO: handle case where combinator is already set
-        self.multiplier = combinator;
+    pub fn add_multiplier(&mut self, multiplier: Multiplier) {
+        self.multiplier = self.multiplier.merge(multiplier);
     }
 
     pub fn name(&self) -> String {
@@ -61,7 +60,7 @@ impl From<CssRepr> for CssItem {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub enum Multiplier {
     #[default]
     None,
@@ -70,6 +69,70 @@ pub enum Multiplier {
     OneOrMore,
     Between(usize, usize),
     CommaSeparatedRepeat(usize, usize),
+}
+
+
+impl Multiplier {
+    pub fn merge(self, other: Multiplier) -> Self {
+        
+        
+        match (self, other) {
+            (Multiplier::None, _) => other,
+            (_, Multiplier::None) => self,
+            (Multiplier::Optional, _) => other.make_opt(),
+            (_, Multiplier::Optional) => self.make_opt(),
+            
+            (Multiplier::ZeroOrMore, _) => other.make_zero_or_more(),
+            (_, Multiplier::ZeroOrMore) => self.make_zero_or_more(),
+            
+            (Multiplier::OneOrMore, _) => other.make_one_or_more(),
+            (_, Multiplier::OneOrMore) => self.make_one_or_more(),
+            
+            
+            (Multiplier::Between(l1, u1), Multiplier::Between(l2, u2)) => {
+                Multiplier::Between(l1.max(l2), u1.min(u2))
+            }
+            (Multiplier::CommaSeparatedRepeat(l1, u1), Multiplier::CommaSeparatedRepeat(l2, u2)) => {
+                Multiplier::CommaSeparatedRepeat(l1.max(l2), u1.min(u2))
+            }
+            
+            _ => todo!()
+        }
+    }
+
+    pub fn make_opt(self) -> Multiplier {
+        match  self {
+            Multiplier::None => Multiplier::Optional,
+            Multiplier::Optional => Multiplier::Optional,
+            Multiplier::ZeroOrMore => Multiplier::ZeroOrMore,
+            Multiplier::OneOrMore => Multiplier::OneOrMore,
+            Multiplier::Between(l, u) => Multiplier::Between(l.saturating_sub(1), u),
+            Multiplier::CommaSeparatedRepeat(l, u) => Multiplier::CommaSeparatedRepeat(l.saturating_sub(1), u),
+        }
+    }
+    
+    pub fn make_zero_or_more(self) -> Multiplier {
+        match self {
+            Multiplier::None => Multiplier::ZeroOrMore,
+            Multiplier::Optional => Multiplier::ZeroOrMore,
+            Multiplier::ZeroOrMore => Multiplier::ZeroOrMore,
+            Multiplier::OneOrMore => Multiplier::ZeroOrMore,
+            Multiplier::Between(l, u) => Multiplier::Between(0, u),
+            Multiplier::CommaSeparatedRepeat(l, u) => Multiplier::CommaSeparatedRepeat(0, u),
+        }
+    }
+    
+    pub fn make_one_or_more(self) -> Multiplier {
+        match self {
+            Multiplier::None => Multiplier::OneOrMore,
+            Multiplier::Optional => Multiplier::ZeroOrMore,
+            Multiplier::ZeroOrMore => Multiplier::ZeroOrMore,
+            Multiplier::OneOrMore => Multiplier::OneOrMore,
+            Multiplier::Between(l, u) => Multiplier::Between(l.max(1), u),
+            Multiplier::CommaSeparatedRepeat(l, u) => Multiplier::CommaSeparatedRepeat(l.max(1), u),
+        }
+    }
+
 }
 
 impl From<&[SyntaxComponentMultiplier]> for Multiplier {
