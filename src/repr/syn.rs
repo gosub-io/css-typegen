@@ -57,8 +57,28 @@ impl CssTree {
         let mut elems = Punctuated::new();
 
         for item in &self.items {
-            if let Some(item) = item.to_type(is_aloao) {
             if let Some(item) = item.to_type(is_aloao || self.is_aloao) {
+                
+                let item = if let Type::Paren(paren) = item {
+                    *paren.elem
+                } else if let Type::Tuple(tuple) = item {
+                    for elem in tuple.elems {
+                        elems.push(Field {
+                            attrs: Vec::new(),
+                            vis: syn::Visibility::Inherited,
+                            mutability: syn::FieldMutability::None,
+                            ident: None,
+                            colon_token: None,
+                            ty: elem,
+                        });
+                    }
+                    
+                    
+                    continue;
+                } else {
+                    item
+                };
+                
                 
                 elems.push(Field {
                     attrs: Vec::new(),
@@ -85,7 +105,7 @@ impl CssTree {
         let mut elems = Punctuated::new();
 
         for item in &self.items {
-            if let Some(ty) = item.to_type(is_aloao) {
+            if let Some(ty) = item.to_type(is_aloao || self.is_aloao) {
                 elems.push(ty);
             }
         }
