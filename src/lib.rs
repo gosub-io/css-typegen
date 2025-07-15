@@ -5,10 +5,11 @@ mod value;
 pub mod builtins;
 pub mod renamer;
 pub mod exporter;
-mod repr;
+pub mod repr;
 
 #[cfg(test)]
 mod tests;
+pub mod parsers;
 
 use convert_case::{Case, Casing};
 use proc_macro2::Span;
