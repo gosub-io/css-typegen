@@ -1,10 +1,10 @@
-use gosub_css3::matcher::syntax::{SyntaxComponentMultiplier};
+use gosub_css3::matcher::syntax::{SyntaxComponentMultiplier, SyntaxComponent};
 use crate::ident_str;
 use crate::multiplier::merge_multipliers;
 
 mod syn;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum CssRepr {
     Function(String, CssTree),
     Sub(String),
@@ -15,7 +15,7 @@ pub enum CssRepr {
     Tuple(CssTree),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct CssItem {
     pub multiplier: Multiplier,
     pub repr: CssRepr,
@@ -60,7 +60,7 @@ impl From<CssRepr> for CssItem {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Hash)]
 pub enum Multiplier {
     #[default]
     None,
@@ -158,7 +158,7 @@ impl From<SyntaxComponentMultiplier> for Multiplier {
 }
 
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum CssTypeRepr {
     Enum(Vec<(String, CssTree)>),
     Struct(CssTree),
@@ -170,7 +170,7 @@ impl From<CssTree> for CssTypeRepr {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct CssType {
     pub name: String,
     pub id: String,
@@ -203,10 +203,10 @@ impl CssType {
     }
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
 pub struct CssTree {
-    is_aloao: bool,
-    pub(crate) items: Vec<CssItem>,
+    pub is_aloao: bool,
+    pub items: Vec<CssItem>,
 }
 
 impl CssTree {
